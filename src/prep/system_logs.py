@@ -10,7 +10,7 @@ from tqdm import tqdm
 from transformers import AutoModel, AutoTokenizer
 
 class DataCleaner:
-    """Clean the System-derived features prior to preprocessing."""
+    """Clean system-log data prior to preprocessing."""
     def __init__(self, df = None, config = None):
         self.df = df.copy() if df is not None else pd.DataFrame()
         self.config = config if config is not None else {}
@@ -60,7 +60,7 @@ class DataCleaner:
         pattern = r'^' + re.escape(prefix_to_remove)
 
         df["Activity"] = (
-            df["Activity"].astype(str).str.strip().replace(
+            df["Activity"].astype(str).str.strip().str.replace(
                 pat=pattern, repl='', regex=True)
         )
 
@@ -299,10 +299,6 @@ class DataPreprocessor:
         """
         # Extract Semantic Parse information into seperate binary variables
         sem_keys = self.extract_keys_sem_parse()
-
-        self.df.loc[
-            self.df['SemanticParse'] == "Semantic no match", 'SemanticParse'
-        ] = "semantic_no_match"
 
         for key in sem_keys:
             if key:

@@ -52,7 +52,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Preprocess system log features.")
 
     parser.add_argument("--output-dir", 
-                        default="data/processed/system_features",
+                        default="data/processed",
                         help="Directory to save the processed system features.")
     parser.add_argument("--system-log-data",
                         default="data/raw/LetsGoIQ/corpus/csv/interactions_legov1.csv",
@@ -79,8 +79,8 @@ if __name__ == "__main__":
 
     system_logs_path = resolve_path(base_path, args.system_log_data)
 
-    system_prompts_output_path = output_dir / "prompt_iq_legov1.csv"
-    processed_features_output_path = output_dir / "processed_system_features.csv"
+    system_prompts_output_path = output_dir / "system_prompts_iq.csv"
+    processed_features_output_path = output_dir / "system_features.csv"
     
     raw_df = pd.read_csv(
         system_logs_path, 
@@ -100,10 +100,20 @@ if __name__ == "__main__":
         header = True
     )
 
-    breakpoint()
-
     processor = DataPreprocessor(cleaned_df, CONFIG, device)
     preprocessed_df = processor.run_preprocessing_pipeline()
+
+    print("\n" + "=" * 60)
+    print(f"SAVING: {processed_features_output_path.name}")
+    print(f"Shape: {preprocessed_df.shape}")
+    print(f"Columns ({len(preprocessed_df.columns)}): {list(preprocessed_df.columns)}")
+    print("-" * 60)
+
+    # Display all columns without horizontal truncation
+    with pd.option_context("display.max_columns", None, "display.max_colwidth", 30):
+        print(preprocessed_df.head(2).T)
+
+    print("=" * 60 + "\n")
 
     preprocessed_df.to_csv(
         processed_features_output_path, 
