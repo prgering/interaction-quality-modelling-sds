@@ -224,3 +224,12 @@ data/raw/*
 data/processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
+
+# Ignore common large data formats anywhere in the repo
+*.csv
+*.tsv
+*.json
+*.parquet
+*.h5
+*.pt
+*.pth
