@@ -233,3 +233,6 @@ data/processed/*
 *.h5
 *.pt
 *.pth
+
+# Ignore vscode folder
+.vscode/
