@@ -320,7 +320,7 @@ class DataPreprocessor:
         self.df = self.df.drop(drop_cols, axis=1)
 
         # Exclude window-level and dialogue-level features
-        self.df = self.df.filter(regex=r'^[^#%]+$')
+        self.df = self.df.filter(regex=r'^(?!.*Mean)[^#%]+$')
 
         # Dummy Coding
         self.df = pd.get_dummies(

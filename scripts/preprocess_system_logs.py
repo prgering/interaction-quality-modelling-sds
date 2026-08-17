@@ -61,6 +61,9 @@ def parse_args():
                         default=42, 
                         type=int, 
                         help="Random seed for reproducibility.")
+    parser.add_argument("--debug",
+                        action="store_true",
+                        help="Run in debug mode with a smaller dataset for faster execution.")
 
     return parser.parse_args()
 
@@ -79,8 +82,12 @@ if __name__ == "__main__":
 
     system_logs_path = resolve_path(base_path, args.system_log_data)
 
-    system_prompts_output_path = output_dir / "system_prompts_iq.csv"
-    processed_features_output_path = output_dir / "system_features.csv"
+    if args.debug:
+        system_prompts_output_path = output_dir / "system_prompts_iq_debug.csv"
+        processed_features_output_path = output_dir / "system_features_debug.csv"
+    else:
+        system_prompts_output_path = output_dir / "system_prompts_iq_full.csv"
+        processed_features_output_path = output_dir / "system_features_full.csv"
     
     raw_df = pd.read_csv(
         system_logs_path, 
@@ -89,6 +96,9 @@ if __name__ == "__main__":
         delimiter=';',
         na_values=CONFIG["null_vals"]
     )
+
+    if args.debug:
+        raw_df = raw_df.head(1000)
 
     cleaner = DataCleaner(raw_df, CONFIG)
     cleaned_df = cleaner.run_cleaning_pipeline()
@@ -102,18 +112,6 @@ if __name__ == "__main__":
 
     processor = DataPreprocessor(cleaned_df, CONFIG, device)
     preprocessed_df = processor.run_preprocessing_pipeline()
-
-    print("\n" + "=" * 60)
-    print(f"SAVING: {processed_features_output_path.name}")
-    print(f"Shape: {preprocessed_df.shape}")
-    print(f"Columns ({len(preprocessed_df.columns)}): {list(preprocessed_df.columns)}")
-    print("-" * 60)
-
-    # Display all columns without horizontal truncation
-    with pd.option_context("display.max_columns", None, "display.max_colwidth", 30):
-        print(preprocessed_df.head(2).T)
-
-    print("=" * 60 + "\n")
 
     preprocessed_df.to_csv(
         processed_features_output_path, 
