@@ -1,5 +1,5 @@
 """
-Transcribe user speech from the LEGO Corpus.
+Transcribe user speech from LEGO Corpus audio recordings.
 
 The speech processing pipeline consists of the following key steps:
     1. Load user-amplified audio recordings from the LEGO Corpus.
@@ -91,7 +91,7 @@ if __name__ == "__main__":
     args.output_filepath = resolve_path(base, args.output_filepath)
 
     speech_processor = UserSpeechProcessor(
-        CONFIG, directories, args.output_filepath
+        CONFIG, directories, args.output_filepath, device
     )
 
     speech_processor.run_pipeline()

@@ -4,6 +4,7 @@ import sys
 import soundfile as sf
 import tempfile
 import numpy as np
+import torch
 import whisperx
 from tqdm import tqdm
 from silero_vad import load_silero_vad, read_audio, get_speech_timestamps
@@ -113,72 +114,68 @@ class UserSpeechProcessor:
         # VAD parameters set based on processing stage
         if stage2:
             vad_folder = self.directory_dict.get("accurate_vad", None)
-            threshold = self.vad_param_dict.get(
-                "accurate_user_vad_threshold", 0.3
-            )
+            threshold = self.vad_param_dict.get("accurate_user_vad_threshold", 0.3)
         else:
             vad_folder = self.directory_dict.get("inaccurate_vad", None)
-            threshold = self.vad_param_dict.get(
-                "inaccurate_user_vad_threshold", 0.8
-            )
+            threshold = self.vad_param_dict.get("inaccurate_user_vad_threshold", 0.8)
 
-        min_speech_duration_ms = self.vad_param_dict.get(
-            "min_speech_duration_ms", 50
-        )
+        # Early exit if VAD folder is not specified
+        if not vad_folder:
+            raise ValueError(
+                f"VAD directory not specified for stage "
+                f"{'2' if stage2 else '1'} in directory_dict."
+                )
+
+        min_speech_duration_ms = self.vad_param_dict.get("min_speech_duration_ms", 50)
         sr = self.vad_param_dict.get("sampling_rate", 8000)
 
         # Loop through files and perform VAD
-        filecodes = wav_filepaths.keys()
-        
-        with tqdm(total=len(filecodes), desc="Performing VAD on full audio") as pbar:
-            for filecode in filecodes:
-                # Extract audio path from dict based on processing stage
-                try:
-                    if stage2:
-                        audio_path = str(wav_filepaths[filecode].get("user", wav_filepaths[filecode]))
-                    else:
-                        audio_path = str(wav_filepaths[filecode]["user"])
-                except (KeyError, TypeError) as e:
-                    print(
-                        f"Skipping {filecode}: Audio path not properly"
-                        f"structured. Error: {e}"
-                    )
-                    pbar.update(1)
-                    continue
+        for filecode, value in tqdm(wav_filepaths.items(), desc="Performing VAD on full audio"):
+            try:
+                if isinstance(value, dict):
+                    audio_path = value.get("user") if stage2 else value["user"]
+                else:
+                    audio_path = value
 
-                try:
+                if not audio_path:
+                    raise ValueError(f"Audio path not found for {filecode}.")
+            except (KeyError, TypeError, AttributeError) as e:
+                print(f"Error accessing audio path for {filecode}: {e}")
+                continue
+
+            try:
+                with torch.no_grad():
+                    # Read audio file and convert to torch tensor
                     wav = read_audio(audio_path, sampling_rate=sr).to(
                         self.device
                     )
-                except Exception as e:
-                    print(f"Unable to Read Audiofile {filecode}: {e}")
-                    pbar.update(1)
-                    continue
 
-                # Perform VAD using Silero VAD model
-                speech_segments = get_speech_timestamps(
-                    wav,
-                    model,
-                    min_speech_duration_ms = min_speech_duration_ms,
-                    threshold = threshold,
-                    sampling_rate = sr,
-                    return_seconds = True
-                )
+                    # Perform VAD using Silero VAD
+                    speech_segments = get_speech_timestamps(
+                        wav,
+                        model,
+                        min_speech_duration_ms = min_speech_duration_ms,
+                        threshold = threshold,
+                        sampling_rate = sr,
+                        return_seconds = True
+                    )
+                    
+            except Exception as e:
+                print(f"Unable to Read Audiofile {filecode}: {e}")
+                continue
 
-                # Write VAD output to RTTM file
-                output_rttm_path = vad_folder / f"{filecode}.rttm"
+            # Write VAD output to RTTM file
+            output_rttm_path = vad_folder / f"{filecode}.rttm"
 
-                with open(output_rttm_path, "w") as f:
-                    for speech_times in (speech_segments):
-                        start_time = speech_times["start"]
-                        end_time = speech_times["end"]
-                        f.write(
-                            f"SPEAKER {filecode} 1 {start_time:.5f}"
-                            f" {end_time - start_time:.5f} <NA> <NA> 1.0"
-                            " <NA>\n"
-                        )
-
-                pbar.update(1)
+            with open(output_rttm_path, "w") as f:
+                for speech_times in (speech_segments):
+                    start_time = speech_times["start"]
+                    end_time = speech_times["end"]
+                    f.write(
+                        f"SPEAKER {filecode} 1 {start_time:.5f}"
+                        f" {end_time - start_time:.5f} <NA> <NA> 1.0"
+                        " <NA>\n"
+                    )
 
     def normalise_and_add_noise(self, wav_filepaths, rttm_filepaths):
         """
@@ -190,68 +187,71 @@ class UserSpeechProcessor:
         noise_level = self.normalise_params_dict.get("white_noise_level", 0.05)
 
         # Get normalised audio output folder from directory_dict
-        normalised_audio_folder = self.directory_dict.get(
-            "normalised_audio", None
-        )
-        if normalised_audio_folder is None:
-            print("Warning: 'normalised_audio' not specified in directory_dict.")
-            return
+        normalised_audio_folder = self.directory_dict.get("normalised_audio")
+        if not normalised_audio_folder:
+            raise ValueError(
+                "Normalised audio directory not specified in directory_dict."
+            )
+
+        # Normalise map lookup kets to strings if they are Path objects
+        wav_path_map = {
+            str(k.stem if isinstance(k, Path) else k): v for k, v in wav_filepaths.items()
+            }
         
         # Loop through RTTM files
-        with tqdm(
-            total=len(rttm_filepaths), desc="Normalizing Speech Segments"
-        ) as pbar:
-            for rttm_filepath in rttm_filepaths:
-                rttm_filecode = rttm_filepath.stem
-                # Check if corresponding audio file exists and can be read
-                if rttm_filecode not in wav_filepaths.keys():
-                    print(
-                        f"Audio file not found for {rttm_filecode}. Skipping."
-                    )
-                    pbar.update(1)
-                    continue
-                try:
-                    audio_filepath = str(wav_filepaths[rttm_filecode]["user"])
-                    audio_data, sr = sf.read(audio_filepath)
-                except Exception as e:
-                    print(f"Error reading audio file {audio_filepath}: {e}")
-                    pbar.update(1)
-                    continue
+        for rttm_filepath in tqdm(rttm_filepaths, desc="Normalizing Speech Segments"):
+            rttm_filecode = rttm_filepath.stem
 
-                # Extract speech segments from RTTM file
-                speech_segments = []
-                
+            # Check if corresponding audio file exists and can be read
+            if rttm_filecode not in wav_path_map:
+                print(f"Audio file not found for {rttm_filecode}. Skipping.")
+                continue
+
+            # Read audio file and handle potential errors
+            try:
+                audio_val = wav_path_map[rttm_filecode]
+                audio_filepath = str(audio_val.get("user") if isinstance(audio_val, dict) else audio_val)
+                audio_data, sr = sf.read(audio_filepath)
+            except Exception as e:
+                print(f"Error reading audio file {audio_filepath}: {e}")
+                continue
+
+            # Extract speech segments from RTTM file
+            speech_segments = []
+            try:
                 with open(rttm_filepath, "r") as f:
                     for line in f:
                         parts = line.strip().split()
-                        if parts[0] == "SPEAKER" and parts[1] == rttm_filecode:
+                        if len(parts) >= 5 and parts[0] == "SPEAKER":
                             start_time = float(parts[3])
                             duration = float(parts[4])
                             end_time = start_time + duration
                             speech_segments.append((start_time, end_time))
+            except Exception as e:
+                print(f"Error reading RTTM file {rttm_filepath}: {e}")
+                continue
 
-                # Perform RMS normalisation based on speech segments
-                normalised_audio, normalised_outcome = self.rms_normalise(
-                    audio_data, 
-                    speech_segments, 
-                    sr, 
-                    target_rms=target_rms
+            # Perform RMS normalisation based on speech segments
+            normalised_audio, normalised_outcome = self.rms_normalise(
+                audio_data, 
+                speech_segments, 
+                sr, 
+                target_rms=target_rms
+            )
+
+            # Add white noise and save normalised audio
+            if normalised_outcome:
+                final_audio = self.add_white_noise(
+                    normalised_audio, noise_level=noise_level
                 )
+                output_filename = (
+                    normalised_audio_folder / f"{rttm_filecode}.wav"
+                )
+                sf.write(output_filename, final_audio, sr)
 
-                # Add white noise and save normalised audio
-                if normalised_outcome:
-                    final_audio = self.add_white_noise(
-                        normalised_audio, noise_level=noise_level
-                    )
-                    output_filename = (
-                        normalised_audio_folder / f"{rttm_filecode}.wav"
-                    )
-                    sf.write(output_filename, final_audio, sr)
+            else:
+                print(f"Skipped File: {rttm_filecode} — no speech segments.")
 
-                else:
-                    print(f"Skipped File: {rttm_filecode} — no speech segments.")
-
-                pbar.update(1)
 
     def transcribe_speech_segments(self, wav_filepaths, vad_files):
         """Transcribes speech segments identified by VAD using WhisperX."""
@@ -414,6 +414,8 @@ class UserSpeechProcessor:
         
         self.perform_vad(wav_file_dict, vad_model)
 
+        breakpoint()
+
         inaccurate_vad_files_list = get_filepaths(
             self.directory_dict, 
             folder_to_process = "inaccurate_vad"
@@ -423,6 +425,8 @@ class UserSpeechProcessor:
             wav_file_dict, 
             inaccurate_vad_files_list
         )
+
+        breakpoint()
 
         normalised_file_dict = get_filepaths(
             self.directory_dict, 
