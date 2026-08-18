@@ -45,9 +45,6 @@ def parse_args():
 
     parser = argparse.ArgumentParser(description="Transcribe user speech.")
 
-    parser.add_argument("--system-features-path", 
-                        default="data/processed/system_features.csv",
-                        help="Path to system features CSV file.")
     parser.add_argument("--audio-dir",
                         default="data/raw/LetsGoIQ/audio",
                         help="Directory containing the raw audio files.")

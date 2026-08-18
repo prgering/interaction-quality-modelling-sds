@@ -14,12 +14,12 @@ The script performs the following key steps:
     and a CSV file of mismatched transcript segments for further analysis.
 """
 
+import argparse
 import os
 import inflect
 import torch
 import sys
 from pathlib import Path
-import argparse
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -29,7 +29,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.prep.system_speech import run_pipeline
+from src.prep.system_speech import SystemSpeechProcessor
 from src.utils import get_base_path, set_all_seeds, resolve_path
 
 CONFIG = {
@@ -58,19 +58,22 @@ def parse_args():
     parser.add_argument("--audio-dir",
                         default="data/raw/LetsGoIQ/audio",
                         help="Directory containing the raw audio files.")
-    parser.add_argument("--processed-transcript-dir",
-                        default="data/processed/transcripts",
-                        help="Directory to save the processed transcript files.")
     parser.add_argument("--mixed-transcript-dir",
                         default="data/processed/mixed_transcripts",
                         help="Directory containing the mixed transcript files.")
-    parser.add_argument("--output-filepath",
-                        default="data/processed/transcripts/unedited_user_transcript.csv",
-                        help="Path to save the unedited user transcript CSV file.")
+    parser.add_argument("--output-dir",
+                        default="data/processed/transcripts",
+                        help="Directory to save the user speech ASR output.")
     parser.add_argument("--seed", 
                         default=42, 
                         type=int, 
                         help="Random seed for reproducibility.")
+    parser.add_argument("--force",
+                            action="store_true",
+                            help="Force re-running full pipeline even if output files exist.")
+    parser.add_argument("--debug",
+                        action="store_true",
+                        help="Enable debug model to test code on a small subset of data.")
 
     return parser.parse_args()
 
@@ -84,8 +87,8 @@ if __name__ == "__main__":
 
     directories = {
         "audio": resolve_path(base, args.audio_dir),
-        "processed_transcript": resolve_path(base, args.processed_transcript_dir),
         "mixed_transcript": resolve_path(base, args.mixed_transcript_dir),
+        "output": resolve_path(base, args.output_dir)
     }
 
     for path in directories.values():
@@ -93,7 +96,7 @@ if __name__ == "__main__":
 
     input_filepaths = {
         "user_csv": (
-            directories["processed_transcript"] / 
+            directories["output"] / 
             "validated_user_transcript.csv"
         ),
         "agent_csv": (
@@ -103,17 +106,21 @@ if __name__ == "__main__":
 
     output_filepaths = {
         "aligned_agent_transcript": (
-            directories["processed_transcript"] / 
+            directories["output"] / 
             "aligned_agent_transcript.csv"
         ),
         "unmatched_prompts_json": (
-            directories["processed_transcript"] / 
+            directories["output"] / 
             "unmatched_agent_prompts.json"
         ),
         "mismatched_transcript_csv": (
-            directories["processed_transcript"] / 
+            directories["output"] / 
             "mismatched_agent_transcript.csv"
         )
     }
 
-    run_pipeline(directories, input_filepaths, output_filepaths, CONFIG, device)
+    speech_processor = SystemSpeechProcessor(
+        CONFIG, directories, input_filepaths, output_filepaths, device
+    )
+
+    speech_processor.run_pipeline()

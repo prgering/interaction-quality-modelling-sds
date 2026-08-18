@@ -219,7 +219,7 @@ class SystemSpeechProcessor:
         torch.cuda.empty_cache()
 
 
-    def identify_user_segments(user_transcript_list, dyad_segments_data_list, time_tolerance=0.5, fuzz_threshold=80):
+    def identify_user_segments(self, user_transcript_list, dyad_segments_data_list, time_tolerance=0.5, fuzz_threshold=80):
         """
         Identifies user segments within a list of dyad segment dictionaries and updates their 'is_user_segment' flag.
         """
@@ -276,7 +276,7 @@ class SystemSpeechProcessor:
         return dyad_segments_data_list, identified_user_dyad_indices
 
 
-    def generate_alignment_candidates(agent_prompts_list, dyad_segments_with_words, used_agent_indices, 
+    def generate_alignment_candidates(self, agent_prompts_list, dyad_segments_with_words, used_agent_indices, 
                                     used_dyad_indices, max_window, current_agent_start_index, proximity_window=5, 
                                     min_fuzz_score_threshold=60):
         """
@@ -608,7 +608,7 @@ class SystemSpeechProcessor:
         return agent_transcripts, unmatched_prompts, files_with_mismatches
 
 
-    def generate_transcript_csv(transcript_dict, output_file):
+    def generate_transcript_csv(self, transcript_dict, output_file):
         with open(output_file, 'w', newline='', encoding='utf-8') as csvfile:
             column_headers = ["CallID", "Speaker", "StartTime", "EndTime", "Transcript", "AgentPrompt", "IQMedian"]
             writer = csv.DictWriter(csvfile, fieldnames=column_headers)
@@ -622,13 +622,13 @@ class SystemSpeechProcessor:
         print(f"\nTranscript saved to {output_file}\n")
 
 
-    def save_unmatched_to_json(unmatched_dict, output_file):
+    def save_unmatched_to_json(self, unmatched_dict, output_file):
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(unmatched_dict, f, indent=4)
         print(f"\nUnmatched agent prompts saved to {output_file}\n")
 
 
-    def save_mismatch_files_csv(transcript_dict, mismatch_files, output_file):
+    def save_mismatch_files_csv(self, transcript_dict, mismatch_files, output_file):
         with open(output_file, 'w', newline='', encoding='utf-8') as csvfile:
             column_headers = ["CallID", "Speaker", "StartTime", "EndTime", "Transcript", "AgentPrompt", "IQMedian"]
             writer = csv.DictWriter(csvfile, fieldnames=column_headers)
