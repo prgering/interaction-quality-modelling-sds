@@ -1,8 +1,6 @@
-import os
 import csv
 import sys
 import soundfile as sf
-import tempfile
 import numpy as np
 import torch
 import whisperx
