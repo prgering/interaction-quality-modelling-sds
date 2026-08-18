@@ -60,14 +60,19 @@ def parse_args():
     parser.add_argument("--normalised-audio-dir",
                         default="data/processed/normalised_noisy_audio",
                         help="Directory to save the normalised audio files.")
-    parser.add_argument("--output-filepath",
-                        default="data/processed/transcripts/user_asr_output.csv",
-                        help="Path to save the user speech ASR output.")
+    parser.add_argument("--output-dir",
+                        default="data/processed/transcripts",
+                        help="Directory to save the user speech ASR output.")
     parser.add_argument("--seed", 
                         default=42, 
                         type=int, 
                         help="Random seed for reproducibility.")
-
+    parser.add_argument("--force",
+                        action="store_true",
+                        help="Force re-running full pipeline even if output files exist.")
+    parser.add_argument("--debug",
+                        action="store_true",
+                        help="Enable debug model to test code on a small subset of data.")
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -83,15 +88,14 @@ if __name__ == "__main__":
         "inaccurate_vad": resolve_path(base, args.inaccurate_vad_dir),
         "accurate_vad": resolve_path(base, args.accurate_vad_dir),
         "normalised_audio": resolve_path(base, args.normalised_audio_dir),
+        "output": resolve_path(base, args.output_dir)
     }
 
     for path in directories.values():
         path.mkdir(parents=True, exist_ok=True)
 
-    args.output_filepath = resolve_path(base, args.output_filepath)
-
     speech_processor = UserSpeechProcessor(
-        CONFIG, directories, args.output_filepath, device
+        CONFIG, directories, device, force=args.force, debug=args.debug
     )
 
     speech_processor.run_pipeline()
