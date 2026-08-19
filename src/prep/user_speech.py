@@ -1,4 +1,3 @@
-import csv
 import sys
 import soundfile as sf
 import numpy as np
@@ -14,7 +13,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.utils import get_filepaths
+from src.utils import (
+    get_filepaths, get_asr_config, transcribe_and_align, save_transcript_csv
+)
 
 
 class UserSpeechProcessor:
@@ -255,14 +256,8 @@ class UserSpeechProcessor:
 
     def transcribe_speech_segments(self, wav_filepaths, vad_files):
         """Transcribes speech segments identified by VAD using WhisperX."""
-        device_str = self.device.type if isinstance(self.device, torch.device) else str(self.device)
-
-        # Resolve compute type and model type
-        user_compute_type = self.asr_params_dict.get("compute_type", "float16")
-        compute_type = user_compute_type if device_str == "cuda" else "float32"
-        
-        model_type = "tiny" if self.debug else self.asr_params_dict.get("model_type", "large-v3")
-        batch_size = self.asr_params_dict.get("batch_size", 16)
+        device_str, compute_type, model_type, batch_size = get_asr_config(
+            self.device, self.asr_params_dict, self.debug)
 
         # Load WhisperX models
         model = whisperx.load_model(model_type, device=device_str, compute_type=compute_type)
@@ -321,14 +316,8 @@ class UserSpeechProcessor:
 
                 # ASR Transcription and alignment on speech segment
                 try:
-                    result = model.transcribe(
-                        segment, language = "en", batch_size = batch_size,
-                    )
-
-                    result = whisperx.align(
-                        result["segments"], model_a, metadata, 
-                        segment, device_str, 
-                        return_char_alignments=False
+                    result = transcribe_and_align(segment, 
+                        model, model_a, metadata, batch_size, device_str
                     )
 
                     # Adjust timestamps and save metadata for each segment
@@ -355,40 +344,7 @@ class UserSpeechProcessor:
                 except Exception as e:
                     print(f"Error transcribing segment {i} in {vad_filecode}: {e}")
         
-        return all_transcripts
-
-    def generate_transcript_csv(self, transcript_dict, output_file):
-        """Generates CSV file for user transcript"""
-        if not output_file:
-            print(
-                "No output file specified for transcript CSV."
-                "Skipping CSV generation.")
-            return
-
-        with open(
-            output_file, 'w', newline='', encoding='utf-8'
-        ) as csvfile:
-            column_headers = [
-                "CallID", "Speaker", "StartTime", "EndTime", "Transcript"
-            ]
-            writer = csv.DictWriter(csvfile, fieldnames=column_headers)
-                    
-            writer.writeheader()
-
-            for filecode, entries in transcript_dict.items():
-                for entry in entries:
-                    entry["CallID"] = filecode
-                    entry["StartTime"] = f"{entry['start']:.2f}"
-                    entry["EndTime"] = f"{entry['end']:.2f}"
-                    entry["Transcript"] = entry["text"]
-                    del entry["text"]
-                    del entry["start"]
-                    del entry["end"]
-                    del entry["words"]
-
-                    writer.writerow(entry)
-
-        print(f"\nTranscript saved to {output_file}\n")         
+        return all_transcripts       
     
     def run_pipeline(self):
         """Runs the full speech processing pipeline"""
@@ -471,7 +427,7 @@ class UserSpeechProcessor:
                 wav_filepaths= wav_file_dict, 
                 vad_files = accurate_vad_files_list
             )
-            self.generate_transcript_csv(transcripts_dict, output_file)
+            save_transcript_csv(transcripts_dict, output_file)
         else:
             print("Stage 4: Skipping transcription (output CSV already exists).")
 

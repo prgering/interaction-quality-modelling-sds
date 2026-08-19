@@ -4,7 +4,7 @@ ASR and Fuzzy alignment.
 
 The script performs the following key steps:
     1. Load the cleaned user transcript and agent prompt data.
-    2. Use WhisperX to perform ASR, alignment and speaker diarisation on
+    2. Use WhisperX to perform ASR, alignment, and speaker diarisation on
     the original audio recordings.
     3. Use RapidFuzz to match the user transcript with segments of the 
     mixed transcript.
@@ -52,15 +52,18 @@ def parse_args():
 
     parser = argparse.ArgumentParser(description="Preprocess system log features.")
 
-    parser.add_argument("--system-prompt-csv", 
-                        default="data/processed/system_features/prompt_iq_legov1.csv",
-                        help="Path to the system prompt CSV file.")
     parser.add_argument("--audio-dir",
                         default="data/raw/LetsGoIQ/audio",
                         help="Directory containing the raw audio files.")
     parser.add_argument("--mixed-transcript-dir",
                         default="data/processed/mixed_transcripts",
                         help="Directory containing the mixed transcript files.")
+    parser.add_argument("--system-prompt-csv", 
+                        default="data/processed/system_prompts_iq_full.csv",
+                        help="Path to the system prompt CSV file.")
+    parser.add_argument("--user-transcript-csv",
+                        default="data/processed/transcripts/validated_user_transcript.csv",
+                        help="Path to the validated user transcript CSV file.")
     parser.add_argument("--output-dir",
                         default="data/processed/transcripts",
                         help="Directory to save the user speech ASR output.")
@@ -87,7 +90,7 @@ if __name__ == "__main__":
 
     directories = {
         "audio": resolve_path(base, args.audio_dir),
-        "mixed_transcript": resolve_path(base, args.mixed_transcript_dir),
+        "mixed_transcripts": resolve_path(base, args.mixed_transcript_dir),
         "output": resolve_path(base, args.output_dir)
     }
 
@@ -96,8 +99,7 @@ if __name__ == "__main__":
 
     input_filepaths = {
         "user_csv": (
-            directories["output"] / 
-            "validated_user_transcript.csv"
+            resolve_path(base, args.user_transcript_csv)
         ),
         "agent_csv": (
             resolve_path(base, args.system_prompt_csv)
@@ -120,7 +122,8 @@ if __name__ == "__main__":
     }
 
     speech_processor = SystemSpeechProcessor(
-        CONFIG, directories, input_filepaths, output_filepaths, device
+        CONFIG, directories, input_filepaths, output_filepaths, 
+        device, force=args.force, debug=args.debug
     )
 
     speech_processor.run_pipeline()

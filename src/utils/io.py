@@ -1,3 +1,4 @@
+import csv
 import re
 import soundfile as sf
 from collections import defaultdict
@@ -67,6 +68,7 @@ def get_filepaths(directory_dict, folder_to_process = None):
         "audio": lambda d: _get_audio_files(d, folder_type="audio"),
         "normalised_audio": lambda d: _get_audio_files(d, folder_type="normalised_audio"),
         "transcripts": _get_transcript_files,
+        "mixed_transcripts": _get_transcript_files
     }
 
     handler = handlers.get(folder_to_process, None)
@@ -75,3 +77,34 @@ def get_filepaths(directory_dict, folder_to_process = None):
 
     print(f"Warning: Unknown folder_to_process '{folder_to_process}'.")
     return None
+
+def save_transcript_csv(transcript_dict, output_file, is_user_transcript = False):
+    """Saves user or system transcript dictionaries to a formatted CSV file."""
+    if not output_file:
+        print("No output file specified for transcript CSV. Skipping CSV generation.")
+        return
+
+    base_headers = ["CallID", "Speaker", "StartTime", "EndTime", "Transcript"]
+    column_headers = base_headers if is_user_transcript else base_headers + ["AgentPrompt", "IQMedian"]
+
+    with open(output_file, 'w', newline='', encoding='utf-8') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=column_headers, extrasaction='ignore')
+        writer.writeheader()
+
+        for filecode, entries in transcript_dict.items():
+            for entry in entries:
+                if is_user_transcript:
+                    row = {
+                        "CallID": filecode,
+                        "Speaker": entry.get("Speaker", "user"),
+                        "StartTime": f"{entry['start']:.2f}" if isinstance(entry.get('start'), (int, float)) else entry.get('start'),
+                        "EndTime": f"{entry['end']:.2f}" if isinstance(entry.get('end'), (int, float)) else entry.get('end'),
+                        "Transcript": entry.get("text", entry.get("Transcript", ""))
+                    }
+                else:
+                    row = dict(entry)
+                    row["CallID"] = filecode
+
+                writer.writerow(row)
+
+    print(f"Transcript saved to {output_file}")

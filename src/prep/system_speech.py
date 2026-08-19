@@ -17,7 +17,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.utils import get_filepaths
+from src.utils import (
+    get_filepaths, get_asr_config, transcribe_and_align, save_transcript_csv
+)
 from src.prep.standardise_text import process_text_for_alignment
 
 p = inflect.engine()
@@ -25,18 +27,21 @@ p = inflect.engine()
 #---------------------------------- Functions -------------------------------------------------
 
 class SystemSpeechProcessor:
-    def __init__(
-        self,
+    def __init__(self,
         config_dict = None,
         directory_dict = None,
         input_files_dict = None,
         output_files_dict = None,
-        device = None
+        device = None,
+        force = False,
+        debug = False
     ):
         """Initialise SystemSpeechProcessor"""
         self.config = config_dict or {}
 
         self.device = device
+        self.force = force
+        self.debug = debug
 
         self.directory_dict = directory_dict or {}
         self.input_files_dict = input_files_dict or {}
@@ -101,44 +106,22 @@ class SystemSpeechProcessor:
         ]
 
     # --- Core Processing Methods ---
-    def transcribe_mixed_audio(self):
+    def transcribe_mixed_audio(self, wav_filepaths, output_dir=None):
         """
         Transcribes mixed audio files using WhisperX, including ASR, word-level alignment,
-        and speaker diarization. The results are saved as JSON and plain text files.
+        and speaker diarisation. The results are saved as JSON and plain text files.
         """
-        # Check if mixed transcripts already exist in output directory
-        mixed_transcript_dir = self.directory_dict.get(
-            "mixed_transcript", ""
-        )
+        device_str, compute_type, model_type, batch_size = get_asr_config(
+                    self.device, self.asr_params_dict, self.debug)
 
-        has_json = any(mixed_transcript_dir.glob("*.json"))
-        has_txt = any(mixed_transcript_dir.glob("*.txt"))
-
-        if has_json and has_txt:
-            print(
-                "Mixed transcripts already exist in directory."
-                " Skipping transcription step."
-            )
-            return
-        
-        # Get filepaths from audio directory for transcription
-        wav_filepaths = get_filepaths(self.directory_dict, "audio")
-        filecodes = wav_filepaths.keys()
-
-        # Load ASR parameters
-        asr_model_type = self.asr_params_dict.get("model_type", "large-v3")
         pyannote_auth_token = self.asr_params_dict.get(
             "pyannote_auth_token", None
         )
-        batch_size = self.asr_params_dict.get("batch_size", 16)
-        compute_type = self.asr_params_dict.get("compute_type", "float16")
 
-        # Load WhisperX ASR, alignment, and diarization models
-        model = whisperx.load_model(
-            asr_model_type, 
-            self.device, 
-            compute_type=compute_type
-        )
+        filecodes = wav_filepaths.keys()
+
+        # Load WhisperX ASR, alignment, and diarisation models
+        model = whisperx.load_model(model_type, device_str, compute_type=compute_type)
 
         model_a, metadata = whisperx.load_align_model(
             language_code="en", 
@@ -146,77 +129,76 @@ class SystemSpeechProcessor:
         )
 
         diarize_model = whisperx.diarize.DiarizationPipeline(
-            use_auth_token=pyannote_auth_token, 
+            token=pyannote_auth_token, 
             device=self.device
         )
 
-        with tqdm(total= len(filecodes), desc="Transcribing Mixed Audio") as pbar:
-            for filecode in filecodes:
-                filepath = str(wav_filepaths[filecode]["dyad"])
-                print(f"\nProcessing File: {filecode} ({filepath})")
+        try:
+            with tqdm(total= len(filecodes), desc="Transcribing Mixed Audio") as pbar:
+                for filecode in filecodes:
+                    filepath = str(wav_filepaths[filecode]["dyad"])
+                    tqdm.write(f"Processing File: {filecode} | Path: {filepath}")
 
-                # --- Transcription Pipeline ---
-                # Load audio file with error handling
-                try:
-                    waveform, sr = torchaudio.load(filepath)
-                except Exception as e:
-                    print(f"Error loading audio file '{filepath}': {e}")
+                    # --- Transcription Pipeline ---
+                    # Load audio file with error handling
+                    try:
+                        waveform, sr = torchaudio.load(filepath)
+                    except Exception as e:
+                        tqdm.write(f"Error loading audio file '{filepath}': {e}")
+                        pbar.update(1)
+                        continue
+
+                    # Check sample rate and waveform shape. Adjust if necessary.
+                    if sr != 16000:
+                        waveform = torchaudio.transforms.Resample(
+                            orig_freq=sr, new_freq=16000
+                            )(waveform)
+                        sr = 16000
+
+                    if waveform.shape[0] > 1:
+                        waveform = torch.mean(waveform, dim=0, keepdim=True)
+
+                    audio = waveform.squeeze().numpy()
+                    
+                    tqdm.write("Performing ASR transcription and alignment...")
+                    result = transcribe_and_align(audio, 
+                        model, model_a, metadata, batch_size, device_str
+                    )
+                    
+                    tqdm.write("  Performing speaker diarisation and assigning labels...")
+                    diarize_segments = diarize_model(
+                        audio, min_speakers=2, max_speakers=2
+                    )
+                    result = whisperx.assign_word_speakers(
+                        diarize_segments, result
+                    )
+
+                    # Extract full transcript from the results
+                    full_text_transcript = " ".join(
+                        segment.get("text", "").strip() 
+                        for segment in result["segments"]
+                    )
+
+                    if output_dir:
+                        os.makedirs(output_dir, exist_ok=True)
+                    
+                    # Save JSON output with timestamps and speaker labels
+                    json_filepath = os.path.join(output_dir, f"{filecode}.json")
+                    with open(json_filepath, "w", encoding="utf-8") as f:
+                        json.dump(result, f, indent=4, ensure_ascii=False)
+                    
+                    # Save plain text transcript
+                    text_filepath = os.path.join(output_dir, f"{filecode}.txt")
+                    with open(text_filepath, "w", encoding="utf-8") as f:
+                        f.write(full_text_transcript.strip())
+
                     pbar.update(1)
-                    continue
-
-                # Check sample rate and waveform shape. Adjust if necessary.
-                if sr != 16000:
-                    waveform = torchaudio.transforms.Resample(
-                        orig_freq=sr, new_freq=16000
-                        )(waveform)
-                    sr = 16000
-
-                if waveform.shape[0] > 1:
-                    waveform = torch.mean(waveform, dim=0, keepdim=True)
-
-                audio = waveform.squeeze().numpy()
-                
-                print("Transcribing audio...")
-                result = model.transcribe(
-                    audio, batch_size=batch_size, language = "en"
-                )
-
-                print("  Performing word-level alignment...")
-                result = whisperx.align(
-                    result["segments"], model_a, metadata, audio, 
-                    self.device, return_char_alignments=False
-                )
-                
-                print("  Performing speaker diarization and assigning labels...")
-                diarize_segments = diarize_model(
-                    audio, min_speakers=2, max_speakers=2
-                )
-                result = whisperx.assign_word_speakers(
-                    diarize_segments, result
-                )
-
-                # Extract full transcript from the results
-                full_text_transcript = " ".join(
-                    segment.get("text", "").strip() 
-                    for segment in result["segments"]
-                )
-                
-                # Save JSON output with timestamps and speaker labels
-                json_filepath = os.path.join(output_dir, f"{filecode}.json")
-                with open(json_filepath, "w", encoding="utf-8") as f:
-                    json.dump(result, f, indent=4, ensure_ascii=False)
-                
-                # Save plain text transcript
-                text_filepath = os.path.join(output_dir, f"{filecode}.txt")
-                with open(text_filepath, "w", encoding="utf-8") as f:
-                    f.write(full_text_transcript.strip())
-
-                pbar.update(1)
-
-        # Cleanup to free memory after transcription
-        del model, model_a, diarize_model, metadata
-        gc.collect()
-        torch.cuda.empty_cache()
+        finally:
+            # Cleanup to free memory after transcription
+            del model, model_a, diarize_model, metadata
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
 
     def identify_user_segments(self, user_transcript_list, dyad_segments_data_list, time_tolerance=0.5, fuzz_threshold=80):
@@ -378,7 +360,12 @@ class SystemSpeechProcessor:
 
         return potential_matches
 
-    def align_agent_with_mixed(self):
+    def align_agent_with_mixed(
+            self, 
+            mixed_transcript_dict=None,
+            agent_df=None,
+            user_df=None,
+        ):
         """
         Aligns agent prompts with segments of mixed transcript using two
         stages of fuzzy matching.
@@ -393,234 +380,207 @@ class SystemSpeechProcessor:
             max_window, prox_window, user_time_tolerance, 
             user_fuzz_threshold, word_fuzz_threshold
         ) = self._get_alignment_params()
-        
-
-        # Load mixed transcript filepaths, agent prompts and user transcripts
-        mixed_transcript_dict = get_filepaths(
-            directory_dict=self.directory_dict,
-            folder_to_process="mixed_transcript"
-        )
-
-        agent_df = pd.read_csv(self.input_files_dict.get("agent_csv", ""))
-        user_df = pd.read_csv(self.input_files_dict.get("user_csv", ""))
 
         # Prepare list of filecodes to process
         filecodes_to_align = self._get_common_filecodes(
             mixed_transcript_dict, agent_df, user_df
         )
-        
-        with tqdm(
-            total=len(filecodes_to_align), desc="Aligning agent prompts") as pbar:
-            for filecode in filecodes_to_align:
-                # 1. Load and prepare data for current filecode
-                dyad_transcript_data = self._load_json(mixed_path)
 
-                agent_prompts_list = self._prepare_agent_prompts(
-                    agent_df, filecode
+        for filecode in tqdm(filecodes_to_align, desc="Aligning agent prompts"):
+            # 1. Load and prepare data for current filecode
+            mixed_transcript_path = mixed_transcript_dict[filecode]
+            dyad_transcript_data = self._load_json(mixed_transcript_path)
+
+            agent_prompts_list = self._prepare_agent_prompts(
+                agent_df, filecode
+            )
+            
+            num_agent_prompts = len(agent_prompts_list)
+
+            # Extract and prepare user segments
+            current_user_data = user_df[user_df["CallID"] == int(filecode)]
+            user_utterances_for_file = current_user_data[
+                ['Transcript', 'StartTime', 'EndTime']
+                ].to_dict(orient='records')
+
+            # Prepare dyad segments for processing
+            dyad_segments_with_words = [
+                {
+                    "original_text": str(seg.get('text', '')),
+                    "processed_text_for_output": processed_output,
+                    "cleaned_text_for_matching": matching_text,
+                    "start": seg['start'],
+                    "end": seg['end'],
+                    "words": seg.get('words', []),
+                    "original_json_idx": i,
+                    "is_user_segment": False,
+                    "matched_user_utterance": None
+                }
+                for i, seg in enumerate(
+                    dyad_transcript_data.get("segments", [])
                 )
-                
-                num_agent_prompts = len(agent_prompts_list)
-
-                # Extract and prepare user segments
-                current_user_data = user_df[user_df["CallID"] == int(filecode)]
-                user_utterances_for_file = current_user_data[
-                    ['Transcript', 'StartTime', 'EndTime']
-                    ].to_dict(orient='records')
-
-                # Prepare dyad segments for processing
-                dyad_segments_with_words = [
-                    {
-                        "original_text": str(seg.get('text', '')),
-                        "processed_text_for_output": processed_output,
-                        "cleaned_text_for_matching": matching_text,
-                        "start": seg['start'],
-                        "end": seg['end'],
-                        "words": seg.get('words', []),
-                        "original_json_idx": i,
-                        "is_user_segment": False,
-                        "matched_user_utterance": None
-                    }
-                    for i, seg in enumerate(
-                        dyad_transcript_data.get("segments", [])
-                    )
-                    for _, processed_output, matching_text in [
-                        process_text_for_alignment(text = seg.get('text', ''))
-                    ]
+                for _, processed_output, matching_text in [
+                    process_text_for_alignment(text = seg.get('text', ''))
                 ]
+            ]
 
-                num_dyad_segments = len(dyad_segments_with_words)
+            num_dyad_segments = len(dyad_segments_with_words)
+            
+            # -------- Speaker Label Identification --------
+            current_agent_speaker_label = None
+
+            first_segment = dyad_transcript_data["segments"][0]
+            if words := first_segment.get("words"):
+                speakers = defaultdict(int)
+                for word_info in words:
+                    if speaker := word_info.get("speaker"):
+                        speakers[speaker] += 1
                 
-                # -------- Speaker Label Identification --------
-                current_agent_speaker_label = None
+                if speakers:
+                    current_agent_speaker_label = max(speakers, key=speakers.get)
 
-                first_segment = dyad_transcript_data["segments"][0]
-                if words := first_segment.get("words"):
-                    speakers = defaultdict(int)
-                    for word_info in words:
-                        if speaker := word_info.get("speaker"):
-                            speakers[speaker] += 1
-                    
-                    if speakers:
-                        current_agent_speaker_label = max(speakers, key=speakers.get)
+            # ------- User Segment Identification -------
+            dyad_segments_with_words, _ = self.identify_user_segments(
+                user_utterances_for_file, dyad_segments_with_words,
+                time_tolerance=user_time_tolerance, fuzz_threshold=user_fuzz_threshold
+            )
 
-                # ------- User Segment Identification -------
-                dyad_segments_with_words, _ = identify_user_segments(
-                    user_utterances_for_file, dyad_segments_with_words,
-                    time_tolerance=user_time_tolerance, fuzz_threshold=user_fuzz_threshold
+            num_dyad_segments = len(dyad_segments_with_words)
+
+            used_agent_indices = [False] * num_agent_prompts
+            used_dyad_indices = [False] * num_dyad_segments
+            file_segments_for_csv = []
+            has_mismatch = False
+
+            # --- First Pass: Global Alignment for Agent Prompts ---
+            while True:
+                possible_agent_matches = []
+                
+                # Collect all potential, currently unused matches
+                for current_agent_idx_in_loop in range(num_agent_prompts):
+                    if not used_agent_indices[current_agent_idx_in_loop]:
+                        
+                        candidates_current_prompt = self.generate_alignment_candidates(
+                            agent_prompts_list, 
+                            dyad_segments_with_words, 
+                            used_agent_indices, 
+                            used_dyad_indices, 
+                            max_window, 
+                            current_agent_idx_in_loop, 
+                            prox_window
+                        )
+
+                        possible_agent_matches.extend(candidates_current_prompt)
+                
+                # Sort all collected candidates by score in descending order to 
+                # find the best global match
+                possible_agent_matches.sort(
+                    key=lambda x: x['score'], reverse=True
                 )
 
-                num_dyad_segments = len(dyad_segments_with_words)
+                best_match_in_iteration = None
 
-                used_agent_indices = [False] * num_agent_prompts
-                used_dyad_indices = [False] * num_dyad_segments
-                file_segments_for_csv = []
-                has_mismatch = False
-
-                # --- First Pass: Global Alignment for Agent Prompts ---
-                while True:
-                    possible_agent_matches = []
-                    
-                    # Collect all potential, currently unused matches
-                    for current_agent_idx_in_loop in range(num_agent_prompts):
-                        if not used_agent_indices[current_agent_idx_in_loop]:
-                            
-                            candidates_current_prompt = generate_alignment_candidates(
-                                agent_prompts_list, 
-                                dyad_segments_with_words, 
-                                used_agent_indices, 
-                                used_dyad_indices, 
-                                max_window, 
-                                current_agent_idx_in_loop, 
-                                proximity_window
-                            )
-
-                            possible_agent_matches.extend(candidates_current_prompt)
-                    
-                    # Sort all collected candidates by score in descending order to 
-                    # find the best global match
-                    possible_agent_matches.sort(
-                        key=lambda x: x['score'], reverse=True
-                    )
-
-                    best_match_in_iteration = None
-
-                    for match in possible_agent_matches:
-                        # Ensure the match uses only UNUSED agent and dyad indices
-                        if (all(
-                            not used_agent_indices[i] 
-                            for i in match['agent_indices']
-                        ) and all(
-                            not used_dyad_indices[i] 
-                            for i in match['dyad_indices']
-                        )):
-                            
-                            # --- Word-Level Validation ---
-                            dyad_words_in_match = []
-                            for dyad_idx in match['dyad_indices']:
-                                dyad_words_in_match.extend(
-                                    dyad_segments_with_words[dyad_idx]['words']
-                                )
-
-                            # If the base score is high, trust the text
-                            # and take all words
-                            if match['score'] >= 95:
-                                agent_words_from_dyad = dyad_words_in_match
-
-                            # If speaker labels are available, filter
-                            # to only include words with current speaker
-                            elif current_agent_speaker_label:
-                                agent_words_from_dyad = [
-                                    w for w in dyad_words_in_match 
-                                    if w.get('speaker') == current_agent_speaker_label
-                                ]
-
-                            # Reconstruct text from agent words for refined fuzzy matching
-                            reconstructed_agent_text_raw = " ".join([w['word'] for w in agent_words_from_dyad]).strip()
-
-                            _, reconstructed_agent_text_processed, reconstructed_agent_text_for_matching = process_text_for_alignment(
-                                text = reconstructed_agent_text_raw
-                            )
-
-                            # Re-calculate fuzz score with reconstructed text
-                            refined_fuzz_score = fuzz.ratio(match["agent_text_for_matching"], reconstructed_agent_text_for_matching)
-
-                            # Only accept if the refined score meets the word-level threshold
-                            if refined_fuzz_score >= word_fuzz_threshold: # Use a specific threshold for word-level
-                                
-                                match['StartTime'] = agent_words_from_dyad[0].get('start')
-                                match['EndTime'] = agent_words_from_dyad[-1].get('end')
-                                match['transcript_from_audio'] = reconstructed_agent_text_processed
-                                
-                                best_match_in_iteration = match
-                                break # Found the best non-conflicting and word-validated match
-
-                    if best_match_in_iteration:
-                        # Commit the best match found in this iteration
-                        processed_agent_text_for_output = best_match_in_iteration["agent_text_processed_for_output"]
-
-                        file_segments_for_csv.append({
-                            "CallID": filecode,
-                            "Speaker": "agent",
-                            "Transcript": best_match_in_iteration.get('transcript_from_audio', processed_agent_text_for_output),
-                            "StartTime": best_match_in_iteration["StartTime"],
-                            "EndTime": best_match_in_iteration["EndTime"],
-                            "AgentPrompt": processed_agent_text_for_output,
-                            "IQMedian": best_match_in_iteration["IQMedian"]
-                        })
+                for match in possible_agent_matches:
+                    # Ensure the match uses only UNUSED agent and dyad indices
+                    if (all(
+                        not used_agent_indices[i] 
+                        for i in match['agent_indices']
+                    ) and all(
+                        not used_dyad_indices[i] 
+                        for i in match['dyad_indices']
+                    )):
                         
-                        # Mark indices as used
-                        for agent_index in best_match_in_iteration["agent_indices"]:
-                            used_agent_indices[agent_index] = True
-                        for dyad_index in best_match_in_iteration["dyad_indices"]:
-                            used_dyad_indices[dyad_index] = True
-                    else:
-                        break
+                        # --- Word-Level Validation ---
+                        dyad_words_in_match = []
+                        for dyad_idx in match['dyad_indices']:
+                            dyad_words_in_match.extend(
+                                dyad_segments_with_words[dyad_idx]['words']
+                            )
 
-                # --- Second Pass: Handle remaining unmatched agent prompts ---
-                # Any prompt that wasn't matched in the first pass is recorded without timing.
-                for agent_idx in range(num_agent_prompts):
-                    if not used_agent_indices[agent_idx]:
-                        processed_unmatched_prompt_for_output = agent_prompts_list[agent_idx][1]
-                        unmatched_prompts[filecode].append(processed_unmatched_prompt_for_output)
-                        file_segments_for_csv.append({
-                            "CallID": filecode,
-                            "Speaker": "agent",
-                            "Transcript": processed_unmatched_prompt_for_output, 
-                            "StartTime": None,
-                            "EndTime": None,
-                            "AgentPrompt": processed_unmatched_prompt_for_output,
-                            "IQMedian": agent_prompts_list[agent_idx][3]
-                        })
-                        print(f"Could not find good match for agent prompt: '{processed_unmatched_prompt_for_output}'")
-                        has_mismatch = True
+                        # If the base score is high, trust the text
+                        # and take all words
+                        if match['score'] >= 95:
+                            agent_words_from_dyad = dyad_words_in_match
 
-                # --- 5. Final Output Compilation ---
-                # Sort all segments (user and agent) by StartTime for chronological output
-                file_segments_for_csv.sort(key=lambda x: x['StartTime'] if x['StartTime'] is not None else float('inf'))
-                agent_transcripts[filecode] = file_segments_for_csv
+                        # If speaker labels are available, filter
+                        # to only include words with current speaker
+                        elif current_agent_speaker_label:
+                            agent_words_from_dyad = [
+                                w for w in dyad_words_in_match 
+                                if w.get('speaker') == current_agent_speaker_label
+                            ]
 
-                if has_mismatch:
-                    files_with_mismatches.add(filecode)
+                        # Reconstruct text from agent words for refined fuzzy matching
+                        reconstructed_agent_text_raw = " ".join([w['word'] for w in agent_words_from_dyad]).strip()
 
-                pbar.update(1)
-                print(f"Aligned agent transcripts for File: {filecode}")
+                        _, reconstructed_agent_text_processed, reconstructed_agent_text_for_matching = process_text_for_alignment(
+                            text = reconstructed_agent_text_raw
+                        )
+
+                        # Re-calculate fuzz score with reconstructed text
+                        refined_fuzz_score = fuzz.ratio(match["agent_text_for_matching"], reconstructed_agent_text_for_matching)
+
+                        # Only accept if the refined score meets the word-level threshold
+                        if refined_fuzz_score >= word_fuzz_threshold: # Use a specific threshold for word-level
+                            
+                            match['StartTime'] = agent_words_from_dyad[0].get('start')
+                            match['EndTime'] = agent_words_from_dyad[-1].get('end')
+                            match['transcript_from_audio'] = reconstructed_agent_text_processed
+                            
+                            best_match_in_iteration = match
+                            break # Found the best non-conflicting and word-validated match
+
+                if best_match_in_iteration:
+                    # Commit the best match found in this iteration
+                    processed_agent_text_for_output = best_match_in_iteration["agent_text_processed_for_output"]
+
+                    file_segments_for_csv.append({
+                        "CallID": filecode,
+                        "Speaker": "agent",
+                        "Transcript": best_match_in_iteration.get('transcript_from_audio', processed_agent_text_for_output),
+                        "StartTime": best_match_in_iteration["StartTime"],
+                        "EndTime": best_match_in_iteration["EndTime"],
+                        "AgentPrompt": processed_agent_text_for_output,
+                        "IQMedian": best_match_in_iteration["IQMedian"]
+                    })
+                    
+                    # Mark indices as used
+                    for agent_index in best_match_in_iteration["agent_indices"]:
+                        used_agent_indices[agent_index] = True
+                    for dyad_index in best_match_in_iteration["dyad_indices"]:
+                        used_dyad_indices[dyad_index] = True
+                else:
+                    break
+
+            # --- Second Pass: Handle remaining unmatched agent prompts ---
+            # Any prompt that wasn't matched in the first pass is recorded without timing.
+            for agent_idx in range(num_agent_prompts):
+                if not used_agent_indices[agent_idx]:
+                    processed_unmatched_prompt_for_output = agent_prompts_list[agent_idx][1]
+                    unmatched_prompts[filecode].append(processed_unmatched_prompt_for_output)
+                    file_segments_for_csv.append({
+                        "CallID": filecode,
+                        "Speaker": "agent",
+                        "Transcript": processed_unmatched_prompt_for_output, 
+                        "StartTime": None,
+                        "EndTime": None,
+                        "AgentPrompt": processed_unmatched_prompt_for_output,
+                        "IQMedian": agent_prompts_list[agent_idx][3]
+                    })
+                    print(f"Could not find good match for agent prompt: '{processed_unmatched_prompt_for_output}'")
+                    has_mismatch = True
+
+            # --- 5. Final Output Compilation ---
+            # Sort all segments (user and agent) by StartTime for chronological output
+            file_segments_for_csv.sort(key=lambda x: x['StartTime'] if x['StartTime'] is not None else float('inf'))
+            agent_transcripts[filecode] = file_segments_for_csv
+
+            if has_mismatch:
+                files_with_mismatches.add(filecode)
+
+            print(f"Aligned agent transcripts for File: {filecode}")
 
         return agent_transcripts, unmatched_prompts, files_with_mismatches
-
-
-    def generate_transcript_csv(self, transcript_dict, output_file):
-        with open(output_file, 'w', newline='', encoding='utf-8') as csvfile:
-            column_headers = ["CallID", "Speaker", "StartTime", "EndTime", "Transcript", "AgentPrompt", "IQMedian"]
-            writer = csv.DictWriter(csvfile, fieldnames=column_headers)
-                    
-            writer.writeheader()
-
-            for filecode, entries in transcript_dict.items():
-                for entry in entries:
-                    writer.writerow(entry)
-
-        print(f"\nTranscript saved to {output_file}\n")
-
 
     def save_unmatched_to_json(self, unmatched_dict, output_file):
         with open(output_file, 'w', encoding='utf-8') as f:
@@ -650,32 +610,83 @@ class SystemSpeechProcessor:
         Runs pipeline to isolate system speech segments in the dyadic audio
         recordings
         """
+        # Gather raw audio file paths
+        wav_file_dict = get_filepaths(self.directory_dict, "audio")
 
-        transcribe_mixed_audio()
+        # Debug mode: limit number of files for faster testing
+        if self.debug:
+            debug_limit = 5
+            wav_file_dict = dict(list(wav_file_dict.items())[:debug_limit])
+            print(f"Debug mode: Limiting to first {debug_limit} audio files for processing.")
 
-        agent_transcripts, unmatched_dict, mismatch_files = align_agent_with_mixed()
+        # Stage 1: Transcribe mixed audio files to generate transcripts
+        mixed_transcript_dir = self.directory_dict.get(
+            "mixed_transcripts", ""
+        )
 
+        # Check if EVERY filecode in wav_file_dict has both .json and .txt outputs present
+        missing_transcripts = any(
+            not (mixed_transcript_dir / f"{filecode}.json").exists() or
+            not (mixed_transcript_dir / f"{filecode}.txt").exists()
+            for filecode in wav_file_dict.keys()
+        )
 
-        max_window = alignment_params.get("max_window", 5)
-        proximity_window = alignment_params.get("proximity_window", 5)
-        word_fuzz_threshold = alignment_params.get("word_fuzz_threshold", 60)
+        if self.force or missing_transcripts:
+            print("Stage 1: Transcribing mixed audio files to generate transcripts.")
+            self.transcribe_mixed_audio(wav_file_dict, output_dir=mixed_transcript_dir)
+        else:
+            print(
+                "All required mixed transcripts already exist in directory."
+                " Skipping transcription step."
+            )
 
-        agent_df = pd.read_csv(input_files_dict.get("agent_csv", ""))
-        user_df = pd.read_csv(input_files_dict.get("user_csv", ""))
-        
-        aligned_transcript_file_path = output_files_dict.get("aligned_agent_transcript", "") 
-        unmatched_prompts_file_path = output_files_dict.get("unmatched_prompts_json", "")
-        mismatched_transcripts_file_path = output_files_dict.get("mismatched_transcript_csv", "")
+        # Stage 2: Align agent prompts with mixed transcripts
 
-        # Align agent prompts with mixed transcripts
-        agent_time_aligned_transcripts, unmatched_dict, mismatched_files_set = align_agent_with_mixed(
-            mixed_transcript_dict=mixed_transcript_dict, agent_df=agent_df, user_df=user_df,
-            max_window=max_window, proximity_window=proximity_window, word_fuzz_threshold=word_fuzz_threshold)
+        aligned_transcript_file_path = self.output_files_dict.get(
+            "aligned_agent_transcript", ""
+        )
+        unmatched_prompts_file_path = self.output_files_dict.get(
+            "unmatched_prompts_json", ""
+        )
+        mismatched_transcripts_file_path = self.output_files_dict.get(
+            "mismatched_transcript_csv", ""
+        )
 
-        # Save outputs
-        generate_transcript_csv(transcript_dict=agent_time_aligned_transcripts, output_file = aligned_transcript_file_path)
+        if self.force or not aligned_transcript_file_path.exists():
+            print("Stage 2: Aligning agent prompts with mixed transcripts.")
 
-        save_unmatched_to_json(unmatched_dict=unmatched_dict, output_file = unmatched_prompts_file_path)
+            # Load mixed transcript filepaths, agent prompts and user transcripts
+            mixed_transcript_dict = get_filepaths(
+                directory_dict=self.directory_dict,
+                folder_to_process="mixed_transcripts"
+            )
+    
+            agent_df = pd.read_csv(self.input_files_dict.get("agent_csv", ""))
+            user_df = pd.read_csv(self.input_files_dict.get("user_csv", ""))
 
-        save_mismatch_files_csv(transcript_dict=agent_time_aligned_transcripts, 
-                                    mismatch_files=mismatched_files_set, output_file = mismatched_transcripts_file_path)
+            agent_transcripts, unmatched_dict, mismatched_files_set = self.align_agent_with_mixed(
+                mixed_transcript_dict=mixed_transcript_dict, 
+                agent_df=agent_df, user_df=user_df
+            )
+
+            save_transcript_csv(
+                transcript_dict=agent_transcripts, 
+                output_file = aligned_transcript_file_path
+            )
+            
+            self.save_unmatched_to_json(
+                unmatched_dict=unmatched_dict, 
+                output_file = unmatched_prompts_file_path
+            )
+            
+            self.save_mismatch_files_csv(
+                transcript_dict=agent_transcripts, 
+                mismatch_files=mismatched_files_set, 
+                output_file = mismatched_transcripts_file_path
+            )
+        else:
+            print(
+                "Aligned agent transcripts already exist in output directory."
+                " Skipping alignment step."
+            )
+            return
