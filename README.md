@@ -35,17 +35,39 @@ You must first download the LEGO corpus from the [University of Bamberg Resource
 
 Once you have unzipped the downloaded folder, place it in the 'data/raw/' directory of this repository.
 
+### 2. Running the Pipeline
+
+#### Step A: System Log Preprocessing
+
+Cleans raw system logs, expands semantic parses, and extracts prompt/utterance text embeddings.
+```bash
+python scripts/preprocess_system_logs.py
+```
+
+#### Step B: User Speech Transcription
+
+Filters user speech using a two-pass Silero VAD, applies Gaussian noise masking, and transcribes audio via Whisper.
+
+```bash
+python scripts/transcribe_user_speech.py
+```
+
+#### Step C: System Speech Alignment
+
+Extract system transcript and timestamps from mixed transcript using ASR and fuzzy alignment.
+
+```bash
+python scripts/align_system_prompts.py
+```
+
+#### Step D: Speech Feature Extraction
+
+#### Step E: Filter System Log Features
+
+#### Step F: Prepare Feature Sets for Machine Learning
+
+#### Step G: Hyperparameter Tuning with LSTM
 
 ## License
 
 Distributed under the project_license. See `LICENSE.txt` for more information.
-
-## Contact
-
-Your Name - [@twitter_handle](https://twitter.com/twitter_handle) - email@email_client.com
-
-## Acknowledgments
-
-* []()
-* []()
-* []()
