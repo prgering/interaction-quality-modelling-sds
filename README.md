@@ -46,7 +46,7 @@ python scripts/preprocess_system_logs.py
 
 #### Step B: User Speech Transcription
 
-Filters user speech using a two-pass Silero VAD, applies Gaussian noise masking, and transcribes audio via Whisper.
+Filters user speech using a two-pass Silero VAD, applies Gaussian noise masking, and transcribes audio via WhisperX.
 
 ```bash
 python scripts/transcribe_user_speech.py
@@ -54,7 +54,7 @@ python scripts/transcribe_user_speech.py
 
 #### Step C: System Speech Alignment
 
-Extract system transcript and timestamps from mixed transcript using ASR and fuzzy alignment.
+Extract system transcript and timestamps from mixed transcript using WhisperX and fuzzy alignment.
 
 ```bash
 python scripts/align_system_prompts.py
@@ -71,3 +71,21 @@ python scripts/align_system_prompts.py
 ## License
 
 Distributed under the project_license. See `LICENSE.txt` for more information.
+
+## References
+```bibtex
+@inproceedings{bain2022whisperx,
+	title        = {{WhisperX}: Time-Accurate Speech Transcription of Long-Form Audio},
+	author       = {Bain, Max and Huh, Jaesung and Han, Tengda and Zisserman, Andrew},
+	year         = 2023,
+	booktitle    = {Interspeech 2023},
+	volume       = {2023-},
+	pages        = {4489--4493},
+}
+@misc{SileroVAD,
+	title        = {{Silero VAD}: pre-trained enterprise-grade Voice Activity Detector (VAD), Number Detector and Language Classifier},
+	author       = {{Silero Team}},
+	year         = 2024,
+	journal      = {GitHub repository},
+	howpublished = {\url{https://github.com/snakers4/silero-vad}},
+}
