@@ -39,7 +39,7 @@ Once you have unzipped the downloaded folder, place it in the 'data/raw/' direct
 
 #### Step A: System Log Preprocessing
 
-Cleans raw system logs, expands semantic parses, and extracts prompt/utterance text embeddings.
+Cleans raw system logs, expands semantic parses, and extracts prompt/utterance text embeddings using pretrained self-supervised models.
 ```bash
 python scripts/preprocess_system_logs.py
 ```
@@ -89,3 +89,11 @@ Distributed under the project_license. See `LICENSE.txt` for more information.
 	journal      = {GitHub repository},
 	howpublished = {\url{https://github.com/snakers4/silero-vad}},
 }
+@inproceedings{schmitt2012parameterized,
+	title        = {A Parameterized and Annotated Spoken Dialog Corpus of the {CMU Let's Go Bus Information System}},
+	author       = {Schmitt, Alexander  and Ultes, Stefan  and Minker, Wolfgang},
+	year         = 2012,
+	booktitle    = {Proceedings of the Eighth International Conference on Language Resources and Evaluation ({LREC}'12)},
+	pages        = {3369--3373},
+}
+```
