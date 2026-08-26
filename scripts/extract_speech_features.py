@@ -41,18 +41,18 @@ def parse_args():
     parser.add_argument("--audio-dir",
                         default="data/raw/LetsGoIQ/audio",
                         help="Directory containing the raw audio files.")
+    parser.add_argument("--transcripts-dir",
+                        default="data/processed/transcripts/",
+                        help="Directory to save combined transcript CSV file without embeddings.")
+    parser.add_argument("--speech-features-dir",
+                        default="data/processed/speech_features/",
+                        help="Directory to save extracted speech features CSV file.")
     parser.add_argument("--user-transcript-path",
                         default="data/processed/transcripts/validated_user_transcript.csv",
                         help="Path to the user transcript CSV file.")
     parser.add_argument("--agent-transcript-path",
                         default="data/processed/transcripts/validated_agent_transcript.csv",
                         help="Path to the agent transcript CSV file.")
-    parser.add_argument("--output-path-combined-transcript",
-                        default="data/processed/transcripts/combined_transcript_no_embeddings.csv",
-                        help="Path to save combined transcript CSV file without embeddings.")
-    parser.add_argument("--output-path-speech-features",
-                        default="data/processed/speech_features/speech_features.csv",
-                        help="Path to save extracted speech features CSV file.")
     parser.add_argument("--seed", 
                         default=42, 
                         type=int, 
@@ -75,8 +75,14 @@ if __name__ == "__main__":
 
     base = get_base_path()
 
-    audio_dir = resolve_path(base, args.audio_dir)
-    audio_dir.mkdir(parents=True, exist_ok=True)
+    directories = {
+        "audio": resolve_path(base, args.audio_dir),
+        "transcripts": resolve_path(base, args.transcripts_dir),
+        "speech_features": resolve_path(base, args.speech_features_dir)
+    }
+
+    for path in directories.values():
+        path.mkdir(parents=True, exist_ok=True)
 
     input_file_paths = {
         "agent_transcript": resolve_path(base, args.agent_transcript_path),
@@ -87,8 +93,8 @@ if __name__ == "__main__":
     df_user = pd.read_csv(input_file_paths["user_transcript"])
 
     output_file_paths = {
-        "combined_transcript": resolve_path(base, args.output_path_combined_transcript),
-        "speech_features": resolve_path(base, args.output_path_speech_features)
+        "combined_transcript": directories["transcripts"] / "combined_transcript.csv",
+        "speech_features": directories["speech_features"] / "speech_features.csv"
     }
 
     if args.debug:
@@ -103,7 +109,7 @@ if __name__ == "__main__":
         print(f"Debug mode: Processing only the first {CONFIG['debug_limit']} rows of each transcript.")
 
     run_feature_extraction_pipeline(
-        audio_dir=audio_dir,
+        audio_dir=directories["audio"],
         df_agent=df_agent,
         df_user=df_user,
         output_filepaths=output_file_paths,

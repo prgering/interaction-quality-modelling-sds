@@ -297,34 +297,47 @@ def extract_text_embeddings(df, column, pretrained_text_models, device=None, bat
     return df
 
 
-def produce_speech_embeds(audio_file_path, callid, start_time, end_time, model, processor, device):
+def produce_speech_embeds(
+        audio_file_path, start_time, end_time, model, processor, device
+    ):
     """Produce Wav2Vec embeddings for a given audio segment."""
 
-    # Load audio file
-    waveform, sr = torchaudio.load(audio_file_path)
+    # Read audio file metadata
+    metadata = torchaudio.info(audio_file_path)
+    original_sr = metadata.sample_rate
+    total_frames = metadata.num_frames
 
-    # Preprocessing audio - Resampling
+    # Compute sample indices for the segment
+    start_frame = int(start_time * original_sr)
+    end_frame = int(end_time * original_sr)
+
+    start_frame = max(0, min(start_frame, total_frames - 1))
+    end_frame = max(start_frame + 1, min(end_frame, total_frames))
+    num_frames = end_frame - start_frame
+
+    # Load audio segment directly using the computed frame indices
+    waveform, sr = torchaudio.load(
+        audio_file_path, frame_offset=start_frame, num_frames=num_frames
+    )
+
+    # Convert stereo to mono if necessary
+    if waveform.shape[0] > 1:
+        waveform = waveform.mean(dim=0, keepdim=True)
+
+    # Resample segment to 16kHz if necessary
     if sr != 16000:
         waveform = Resample(orig_freq=sr, new_freq=16000)(waveform)
         sr = 16000
 
-    # Convert to mono if stereo
-    if waveform.shape[0] > 1:
-        waveform = waveform.mean(dim=0, keepdim=True)
+    # Pad extremely short segments to prevent CNN layer dimension errors
+    min_samples = 400 
+    if waveform.shape[-1] < min_samples:
+        waveform = torch.nn.functional.pad(
+            waveform, (0, min_samples - waveform.shape[-1])
+        )
 
-    # Segment time-to-sample conversion and clipping
-    total_samples = waveform.shape[-1]
-
-    start_sample = int(start_time * sr)
-    end_sample = int(end_time * sr)
-
-    start_sample = max(0, min(start_sample, total_samples - 1))
-    end_sample = max(start_sample + 1, min(end_sample, total_samples))
-
-    segment = waveform[:, start_sample:end_sample]
-
-    # Generate Wav2Vec embeddings
-    inputs = processor(segment.squeeze(0), sampling_rate=sr, return_tensors="pt", padding=True)
+    # Process and run inference
+    inputs = processor(waveform.squeeze(0), sampling_rate=sr, return_tensors="pt", padding=True)
     inputs = {k: v.to(device) for k, v in inputs.items()}
 
     with torch.no_grad():
@@ -333,29 +346,57 @@ def produce_speech_embeds(audio_file_path, callid, start_time, end_time, model, 
 
     mean_pooled_embedding = torch.mean(last_hidden_states, dim=1)
 
-    exchange_embedding = mean_pooled_embedding.squeeze(0).cpu().numpy()
-
-    return exchange_embedding
+    return mean_pooled_embedding.squeeze(0).cpu().numpy()
 
 
 def acoustic_feature_extraction(audio_files_dict, df, pretrained_speech_models = None, device = None):
     """Extract acoustic embeddings and OpenSMILE features from audio_files."""
 
-    # Opensmile Model Initialisation
+    # 1. OpenSMILE Feature Extraction
     smile = opensmile.Smile(
         feature_set=opensmile.FeatureSet.eGeMAPSv02,
         feature_level=opensmile.FeatureLevel.Functionals,
     )
+
     all_opensmile_feature_names = [f'Opensmile{col}' for col in smile.feature_names]    
-    
-    # Initialise list to hold all acoustic embeddings
+
+    opensmile_rows = []
+
+    for index, row in df.iterrows():
+        current_callid = str(row['CallID']).split('.')[0]
+        start, end = row['StartTime'], row['EndTime']
+        audio_path = audio_files_dict.get(current_callid, {}).get("dyad")
+
+        if audio_path:
+            try:
+                features_df = smile.process_file(audio_path, start=start, end=end)
+
+                if not features_df.empty:
+                    feat_dict = {
+                        f'Opensmile{k}': v 
+                        for k, v in features_df.iloc[0].to_dict().items()
+                    }
+                else:
+                    print(f"No OpenSMILE features extracted for {audio_path} from {start}-{end}")
+                    feat_dict = {col: np.nan for col in all_opensmile_feature_names}
+
+            except Exception as e:
+                print(f"Error processing OpenSMILE for {audio_path} from {start}-{end}: {e}")
+                feat_dict = {col: np.nan for col in all_opensmile_feature_names}
+            
+        else:
+            feat_dict = {col: np.nan for col in all_opensmile_feature_names}
+            
+        feat_dict['OriginalIndex'] = index
+        opensmile_rows.append(feat_dict)
+
+    opensmile_df = pd.DataFrame(opensmile_rows).set_index('OriginalIndex')
+
+    # 2. Speech Embedding Extraction
     all_speech_embed_dfs = []
 
-    # Initialise placeholder for OpenSMILE df
-    opensmile_df = None
-                                                           
-    # Loop through each pretrained speech model
-    for model_name in pretrained_speech_models:
+    # Loop through each pretrained speech model to extract embeddings
+    for model_name in (pretrained_speech_models or []):
 
         model_tag = model_name.split('/')[-1].replace('-', '_')
         model_prefix = f"{model_tag}_Emb"
@@ -363,115 +404,112 @@ def acoustic_feature_extraction(audio_files_dict, df, pretrained_speech_models =
         print(f'Extracting speech embeddings using model: {model_tag}')
 
         config = AutoConfig.from_pretrained(model_name)
-
-        if config.model_type == "wavlm" or config.model_type == "hubert":
+        if config.model_type in ["wavlm", "hubert"]:
             speech_processor = AutoFeatureExtractor.from_pretrained(model_name)
         else:
             speech_processor = AutoProcessor.from_pretrained(model_name)
         
         speech_model = AutoModel.from_pretrained(model_name).to(device)
-        speech_embed_dims = speech_model.config.hidden_size  # Dynamically get embedding dimension
         speech_model.eval()
-
+        speech_embed_dims = speech_model.config.hidden_size  # Dynamically get embedding dimension
+        
         current_model_features = []
 
         # Iterate through each row (exchange)
         for index, row in df.iterrows():
-            current_callid = str(int(row['CallID']))
-            start = row['StartTime']
-            end = row['EndTime']
+            current_callid = str(row['CallID']).split('.')[0]
+            start, end = row['StartTime'], row['EndTime']
 
-            audio_path = audio_files_dict.get(current_callid)["dyad"]
-
-            # OpenSMILE Feature Extraction
-            if opensmile_df is None:
-                if audio_path is None:
-                    opensmile_features_dict = {col: np.nan for col in all_opensmile_feature_names}
-                else:
-                    try:
-                        features_df = smile.process_file(audio_path, start=start, end=end)
-
-                        if not features_df.empty:
-                            features_series = features_df.iloc[0] 
-                            opensmile_features_dict = {f'Opensmile{k}': v for k, v in features_series.to_dict().items()}
-                        else:
-                            print(f"No OpenSMILE features extracted for {audio_path} from {start}-{end}")
-                            opensmile_features_dict = {col: np.nan for col in all_opensmile_feature_names}
-
-                    except Exception as e:
-                        print(f"Error processing OpenSMILE for {audio_path} from {start}-{end}: {e}")
-                        opensmile_features_dict = {col: np.nan for col in all_opensmile_feature_names}
+            audio_path = audio_files_dict.get(current_callid, {}).get("dyad")
 
             # Speech Embedding Generation (Run for every model in loop)
-            if audio_path is None:
-                speech_features_dict = {f'{model_prefix}{i}': np.nan for i in range(speech_embed_dims)}
-            else:
+            if audio_path:
                 try:
-                    speech_embeds = produce_speech_embeds(audio_file_path= audio_path,
-                                                            callid = current_callid, 
-                                                            start_time= start, 
-                                                            end_time=end, 
-                                                            model = speech_model, 
-                                                            processor= speech_processor, 
-                                                            device = device)
+                    speech_embeds = produce_speech_embeds(
+                        audio_file_path= audio_path, 
+                        start_time= start, end_time=end, 
+                        model = speech_model, processor= speech_processor, 
+                        device = device
+                    )
 
-                    speech_features_dict = {f'{model_prefix}{i}': val for i, val in enumerate(speech_embeds.flatten())}
+                    speech_features_dict = {
+                        f'{model_prefix}{i}': val 
+                        for i, val in enumerate(speech_embeds.flatten())
+                    }
 
                 except Exception as e:
                     print(f"Unhandled error during Wav2Vec embedding generation for {audio_path} from {start}-{end}: {e}")
-                    speech_features_dict = {f'{model_prefix}{i}': np.nan for i in range(speech_embed_dims)}
-        
-            current_data = {
-                'OriginalIndex': index,
-            }
+                    speech_features_dict = {
+                        f'{model_prefix}{i}': np.nan 
+                        for i in range(speech_embed_dims)
+                    }
+                    
+            else:
+                speech_features_dict = {
+                    f'{model_prefix}{i}': np.nan 
+                    for i in range(speech_embed_dims)
+                }
 
-            current_data.update(speech_features_dict)
+            speech_features_dict['OriginalIndex'] = index
+            current_model_features.append(speech_features_dict)
 
-            if opensmile_df is None:
-                current_data.update(opensmile_features_dict)
+        model_df = pd.DataFrame(current_model_features).set_index('OriginalIndex')
+        all_speech_embed_dfs.append(model_df)
 
-            current_model_features.append(current_data)
+        # Clear VRAM between models
+        del speech_model, speech_processor
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
-        current_model_df = pd.DataFrame(current_model_features).set_index('OriginalIndex')
-
-        if opensmile_df is None:
-            opensmile_cols = [col for col in current_model_df.columns if col.startswith('Opensmile')]
-            opensmile_df = current_model_df[opensmile_cols]
-        
-        speech_embed_cols = [col for col in current_model_df.columns if col.startswith(model_tag)]
-        all_speech_embed_dfs.append(current_model_df[speech_embed_cols])
-
-    df_final = pd.merge(df, opensmile_df, left_index=True, right_index=True, how='left')
-
-    for speech_embed_df in all_speech_embed_dfs:
-        df_final = pd.merge(df_final, speech_embed_df, left_index=True, right_index=True, how='left')
-
+    # Merge all features into a single DataFrame
+    df_final = pd.concat([df, opensmile_df] + all_speech_embed_dfs, axis=1)
     print("\n All Acoustic features and embeddings extracted and merged.")
     return df_final
     
 
 def prepare_features_for_ml(df, null_values, output_path = None):
+    """
+    Prepare extracted features by computing additional features, dropping
+    unnecessary columns, and handling null values. Optionally save the resulting 
+    DataFrame to a CSV file.
+    """
 
-    df["ExchangeDuration"] = df["EndTime"] - df["StartTime"]
+    df_copy = df.copy()
 
-    columns_to_drop = ['CombinedTranscript', 'StartTime', 'EndTime', 'AgentTranscript', 'AgentPrompt', 'UserStartTime', 'UserEndTime', 'AgentEndTime']
-    df_filtered = df.drop(columns=columns_to_drop, errors='ignore')
-    
+    # Compute Exchange Duration if StartTime and EndTime are present
+    if "StartTime" in df_copy.columns and "EndTime" in df_copy.columns:
+        df_copy["ExchangeDuration"] = df_copy["EndTime"] - df_copy["StartTime"]
+
+    # Drop metadata/transcript columns
+    columns_to_drop = [
+        'CombinedTranscript', 'StartTime', 'EndTime', 'AgentTranscript', 
+        'AgentPrompt', 'UserStartTime', 'UserEndTime', 'AgentEndTime'
+    ]
+
+    df_filtered = df_copy.drop(columns=columns_to_drop, errors='ignore')
+
+    # Standardise null values 
     df_filtered = df_filtered.replace(null_values, pd.NA, regex=False)
-    
-    print(f"Number of NaNs in prepare_features_for_ml: {df_filtered.isnull().sum().sum()}")
-    print("Columns with NaNs in prepare_features_for_ml:")
-    print(df_filtered.isnull().sum()[df_filtered.isnull().sum() > 0])
 
-    # Identify rows with NaNs
+    # Compute NaN metrics
+    null_counts = df_filtered.isnull().sum()
+    total_nans = null_counts.sum()
+    cols_with_nans = null_counts[null_counts > 0].index.tolist()
     rows_with_nan = df_filtered[df_filtered.isnull().any(axis=1)]
-    print("Rows with NaNs in prepare_features_for_ml:")
-    print(rows_with_nan)
 
+    print(f"Total NaN values in the feature set: {total_nans}")
+    if total_nans > 0:
+        print(f"Columns with NaN values: {cols_with_nans}")
+        print(f"Number of rows with NaN values: {len(rows_with_nan)}")
+        print("Rows with NaNs in prepare_features_for_ml:")
+        print(rows_with_nan)
+
+    # Export to CSV if output_path is provided
     if output_path:
-        output_path = Path(output_path)
         df_filtered.to_csv(output_path, index=False)
         print(f"Feature Set for saved to {output_path}")
+
+    return df_filtered
     
 #---------------------- Core Processing Function --------------------
 
@@ -484,8 +522,7 @@ def run_feature_extraction_pipeline(
         device = None,
         force = False
     ):
-    
-    # Stage 1: Combine agent and user transcripts
+
     combined_transcript_path = output_filepaths.get("combined_transcript")
 
     if force or not Path(combined_transcript_path).exists():
@@ -498,7 +535,6 @@ def run_feature_extraction_pipeline(
         df_combined = pd.read_csv(combined_transcript_path)
         print(f"Loaded existing combined transcript from {combined_transcript_path}")
 
-    # Stage 2: Convert to exchange-level data and extract turn-taking features
     print("Stage 2: Converting utterance-level data to exchange-level and " \
           "extracting turn-taking features...")
     
@@ -508,7 +544,6 @@ def run_feature_extraction_pipeline(
         duration_threshold = config_dict["duration_threshold"]
     ) 
 
-    # Stage 3: Extract text embeddings
     print("Stage 3: Extracting text embeddings...")
 
     df_text_emb = extract_text_embeddings(
@@ -518,14 +553,14 @@ def run_feature_extraction_pipeline(
         device= device
     )
 
-    # Stage 4: Extract acoustic features
+    print("Stage 4: Extracting acoustic features...")
 
     audio_files_dict = get_filepaths(
         directory_dict = {"audio": audio_dir}, 
         folder_to_process = "audio"
     )
     
-    print("Stage 4: Extracting acoustic features...")
+    
     df_features = acoustic_feature_extraction(
         audio_files_dict, 
         df_text_emb, 
@@ -533,11 +568,13 @@ def run_feature_extraction_pipeline(
         device= device
     )
 
-    breakpoint()
-
     print("Stage 5: Preparing features for ML...")
-    prepare_features_for_ml(
+
+    df_final = prepare_features_for_ml(
         df= df_features,
         null_values=config_dict["null_vals"], 
         output_path = output_filepaths["speech_features"]
     )
+
+    print(f"Feature extraction pipeline completed.")
+    print(f"Final feature set shape: {df_final.shape}")
