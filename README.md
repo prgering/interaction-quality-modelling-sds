@@ -27,24 +27,21 @@ Follow these steps to set up the environment and run the code locally.
    conda env create -f environment.yml
    conda activate model_iq_env
 
-## Usage
-
-### 1. Data Preparation
-
-You must first download the LEGO corpus from the [University of Bamberg Resources Website](https://www.uni-bamberg.de/ds/ressourcen/lego/).
+### Data Preparation
+You must download the LEGO corpus from the [University of Bamberg Resources Website](https://www.uni-bamberg.de/ds/ressourcen/lego/).
 
 Once you have unzipped the downloaded folder, place it in the 'data/raw/' directory of this repository.
 
-### 2. Running the Pipeline
+## Running the Pipeline
 
-#### Step A: System Log Preprocessing
+### Step A: System Log Preprocessing
 
 Cleans raw system logs, expands semantic parses, and extracts prompt/utterance text embeddings using pretrained self-supervised models.
 ```bash
 python scripts/preprocess_system_logs.py
 ```
 
-#### Step B: User Speech Transcription
+### Step B: User Speech Transcription
 
 Filters user speech using a two-pass Silero VAD, applies Gaussian noise masking, and transcribes audio via WhisperX.
 
@@ -52,7 +49,7 @@ Filters user speech using a two-pass Silero VAD, applies Gaussian noise masking,
 python scripts/transcribe_user_speech.py
 ```
 
-#### Step C: System Speech Alignment
+### Step C: System Speech Alignment
 
 Extract system transcript and timestamps from mixed transcript using WhisperX and fuzzy alignment.
 
@@ -60,7 +57,7 @@ Extract system transcript and timestamps from mixed transcript using WhisperX an
 python scripts/align_system_prompts.py
 ```
 
-#### Step D: Speech Feature Extraction
+### Step D: Speech Feature Extraction
 
 Combine user and agent transcripts and extract exchange-level speech features (OpenSMILE acoustic features, pretrained speech embeddings, and text embeddings).
 
