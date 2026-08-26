@@ -89,11 +89,11 @@ sbatch slurm/scripts/extract_speech_features.sh static_speech
 sbatch slurm/scripts/extract_speech_features.sh speech
 ```
 
-#### Step E: Filter System Log Features
+### Step E: Filter System Log Features
 
-#### Step F: Prepare Feature Sets for Machine Learning
+### Step F: Prepare Feature Sets for Machine Learning
 
-#### Step G: Hyperparameter Tuning with LSTM
+### Step G: Hyperparameter Tuning with LSTM
 
 ## License
 

@@ -23,10 +23,10 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.utils import get_base_path, set_all_seeds, resolve_path
-from src.prep.speech_feature_extractor import run_feature_extraction_pipeline
+from src.prep.feature_extraction import run_feature_extraction_pipeline
 
 CONFIG = {
-    "debug_limit": 10,  # Limit for debug mode
+    "debug_limit": 50,  # Limit for debug mode
     "duration_threshold": 1.001,  # Threshold for response token duration
     "response_tokens": ["yeah", "yes", "yep", "correct", "wrong", "huh", "uh", "okay", "ok", "right", "alright", "oh", "sure", "really", "no", "nope"],
     "null_vals": ["", " ", "nan", "NaN", "N/A", "None", "null", "NULL", "none"],
@@ -44,9 +44,9 @@ def parse_args():
     parser.add_argument("--transcripts-dir",
                         default="data/processed/transcripts/",
                         help="Directory to save combined transcript CSV file without embeddings.")
-    parser.add_argument("--speech-features-dir",
-                        default="data/processed/speech_features/",
-                        help="Directory to save extracted speech features CSV file.")
+    parser.add_argument("--features-dir",
+                        default="data/processed/extracted_features/",
+                        help="Directory to save extracted features CSV files.")
     parser.add_argument("--user-transcript-path",
                         default="data/processed/transcripts/validated_user_transcript.csv",
                         help="Path to the user transcript CSV file.")
@@ -80,7 +80,7 @@ if __name__ == "__main__":
     directories = {
         "audio": resolve_path(base, args.audio_dir),
         "transcripts": resolve_path(base, args.transcripts_dir),
-        "speech_features": resolve_path(base, args.speech_features_dir)
+        "extracted_features": resolve_path(base, args.features_dir)
     }
 
     for path in directories.values():
@@ -96,7 +96,7 @@ if __name__ == "__main__":
 
     output_file_paths = {
         "combined_transcript": directories["transcripts"] / "combined_transcript.csv",
-        "speech_features": directories["speech_features"] / (
+        "speech_features": directories["extracted_features"] / (
             "speech_features_no_embeds.csv" if args.skip_embeddings else "speech_features.csv"
         )
     }

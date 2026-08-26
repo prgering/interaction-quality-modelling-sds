@@ -1,13 +1,22 @@
 # Imports
 import numpy as np
+import os
 import pandas as pd
 import re
+import sys
 import torch
 
 from collections import defaultdict
+from pathlib import Path
 from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 from transformers import AutoModel, AutoTokenizer
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.utils import is_valid_audio
 
 class DataCleaner:
     """Clean system-log data prior to preprocessing."""
@@ -329,3 +338,279 @@ class DataPreprocessor:
         )
 
         return self.df
+
+class DialogueExcluder:
+    """
+    Manages the exclusion of audio files from the LEGO corpus.
+
+    Filters the dataset based on the following criteria:
+    - Missing or empty .wav audio files.
+    - CallIDs listed in a predefined exclusion list.
+    - Dialogues where the user does not speak at all.
+    """
+
+    def __init__(self, 
+                 df_system_features = None, df_user = None, 
+                 df_system_transcript = None, audio_folder = None, 
+                 config = None
+    ):
+        """Initialise the DialogueExcluder with dataframes and config"""
+        self.df_system_features = (
+            df_system_features.copy() 
+            if df_system_features is not None else None
+        )
+
+        self.user_transcripts = (
+            df_user.copy() if df_user is not None 
+            else None
+        )
+        self.system_transcripts = (
+            df_system_transcript.copy() if df_system_transcript is not None 
+            else None
+        )
+
+        self.audio_dir = audio_folder
+        
+        # Extract config settings
+        config = config if config is not None else {}
+
+        self.manual_exclude_list = config.get("files_to_exclude", [])
+        self.null_vals = config.get("null_vals", [])
+        self.drop_cols = config.get("columns_to_drop", {}).get(
+            "exclusion_code", []
+        )
+        
+        self.valid_wav_paths = defaultdict(Path)
+        self.exclusion_map = defaultdict(str)
+
+    def check_wav_validity(self):
+        """
+        Scans the audio directory for valid .wav files. 
+        Updates self.valid_wav_paths and self.exclusion_map.
+        """
+
+        if not self.audio_dir or not Path(self.audio_dir).is_dir():
+            raise ValueError(f"Invalid audio folder path: {self.audio_dir}")
+        
+        # Find all dyadic .wav files in the audio directory
+        wav_files = [
+            os.path.join(dp, f) 
+            for dp, _, files in os.walk(self.audio_dir)
+            for f in files 
+            if f.startswith("LetsGoPublic") and f.endswith("output.wav")
+        ]
+
+        for filepath in sorted(wav_files):
+            # Extract 11-digit filecode from filename
+            filecode = (re.sub(r"[^0-9]", "", filepath))[-11:]
+
+            is_valid, error_msg = is_valid_audio(filepath, filecode)
+
+            if not is_valid:
+                self.exclusion_map[filecode] = error_msg
+                continue
+
+            self.valid_wav_paths[filecode] = Path(filepath)
+
+
+    def validate_callids(self):
+        """
+        Cross-references CallIDs in the DataFrame with discovered .wav files.
+        """
+        if self.df_system_features is None:
+            raise ValueError("DataFrame is not set.")
+
+        df = self.df_system_features
+
+        # Ensure CallID is a standardised string for comparison
+        if pd.api.types.is_float_dtype(df['CallID']):
+            df['CallID'] = df['CallID'].astype(int).astype(str)
+        elif pd.api.types.is_integer_dtype(df['CallID']):
+            df['CallID'] = df['CallID'].astype(str)
+        elif pd.api.types.is_object_dtype(df['CallID']):
+            df['CallID'] = df['CallID'].astype(str)
+
+        df['CallID'] = df['CallID'].str.strip()
+
+        # Identify CallIDs without valid .wav files
+        valid_ids = set(str(k).strip() for k in self.valid_wav_paths.keys())
+        all_ids = set(df['CallID'].dropna().unique())
+        missing_ids = all_ids - valid_ids
+
+        for call_id in missing_ids:
+            self.exclusion_map[call_id] = "No corresponding .wav file found"
+
+        # Keep only rows with valid CallIDs
+        self.df_system_features = df[df['CallID'].isin(valid_ids)].copy()
+
+    def exclude_dialogues_manually(self):
+        """
+        Removes dialogues explicitly listed in the configuration exclusion 
+        list.
+        """
+        for call_id in self.manual_exclude_list:
+            if call_id not in self.exclusion_map:
+                self.exclusion_map[call_id] = "Manually excluded via config"
+
+        self.df_system_features = self.df_system_features[
+            ~self.df_system_features['CallID'].isin(self.manual_exclude_list)
+        ]
+
+    def exclude_silent_users(self):
+        """
+        Excludes dialogues where the user transcript is empty or contains
+        only null values.
+        """
+        if self.user_transcripts is None:
+            raise ValueError("User transcript DataFrame is not set.")
+
+        working_user_df = self.user_transcripts.copy()
+        
+        # Standardise null values and drop empty transcripts
+        if self.null_vals:
+            working_user_df = working_user_df.replace(self.null_vals, pd.NA)
+
+        working_user_df = (
+            working_user_df[working_user_df['Transcript'].notna()]
+        )
+        working_user_df['CallID'] = (
+            working_user_df['CallID'].astype(int).astype(str)
+        )
+
+        active_call_ids = set(working_user_df['CallID'].unique())
+        
+        # Track excluded CallIDs where user does not speak
+        for call_id in self.df_system_features["CallID"].unique().tolist():
+            if call_id not in active_call_ids:
+                self.exclusion_map[call_id] = "User does not speak"
+
+        self.df_system_features = (
+            self.df_system_features[self.df_system_features['CallID'].isin(active_call_ids)]
+        )
+        
+
+    def _standardise_prompt(self, prompt):
+        """
+        Standardises a prompt string for comparison.
+        """
+        if pd.isna(prompt):
+            return prompt
+
+        s = str(prompt).lower()
+        s = re.sub(r'\s([?.!,\'"](?:\s|$))', r'\1', s)
+        return re.sub(r'\s+', ' ', s).strip()
+
+    def exclude_silent_agents(self):
+        """
+        Filters dataset to only include rows with matching valid agent
+        transcripts.
+        
+        Uses CallID, Prompt, and IQMedian to align transcripts, then selects the 
+        best match based on the relative sequence (PromptNumber).
+        """
+        # 1. Add sequence numbers to help with fuzzy alignment
+        self.df_system_features['PromptNumber'] = (
+            self.df_system_features.groupby('CallID').cumcount()
+        )
+        self.system_transcripts['PromptNumber'] = (
+            self.system_transcripts.groupby('CallID').cumcount()
+        )
+
+        # 2. Data Cleaning to ease matching
+        self.system_transcripts['CallID'] = (
+            self.system_transcripts['CallID'].ffill()
+        )
+        self.system_transcripts['Speaker'] = (
+            self.system_transcripts['Speaker'].ffill()
+        )
+        self.system_transcripts['CallID'] = (
+            self.system_transcripts['CallID'].astype(int).astype(str)
+        )
+
+        # 3. Filter both dataframes to only include common CallIDs
+        common_call_ids = set(self.df_system_features['CallID']).intersection(
+            set(self.system_transcripts['CallID'])
+        )
+        filtered_ds = (
+            self.df_system_features[
+                self.df_system_features['CallID'].isin(common_call_ids)
+            ].copy()
+        )
+        filtered_system_ts = (
+            self.system_transcripts[
+                self.system_transcripts['CallID'].isin(common_call_ids)
+            ].copy()
+        )
+
+        # 4. Filter valid transcripts from the agent dataframe
+        if self.null_vals:
+            filtered_system_ts = (
+                filtered_system_ts.replace(
+                    self.null_vals, pd.NA, regex=False
+                )
+            )
+
+        valid_system_ts = filtered_system_ts[
+            filtered_system_ts['Transcript'].notna() &
+            (filtered_system_ts['Transcript'].str.strip() != "")
+        ].copy()
+
+        # Use standardised prompts for matching
+        filtered_ds['Prompt'] = filtered_ds['Prompt'].apply(
+            self._standardise_prompt
+        )
+        valid_system_ts['Prompt'] = valid_system_ts['Prompt'].apply(
+            self._standardise_prompt
+        )
+
+        # 5. Merge based on the anchor columns (CallID, Prompt, IQMedian)
+        merged_df = pd.merge(
+            valid_system_ts,
+            filtered_ds,
+            on=['CallID', 'Prompt', 'IQMedian'],
+            how='left',
+            suffixes=('_system', '_main')
+        )
+
+        # 6. Drop rows where the merge failed (i.e., PromptNumber_main is NaN)
+        valid_merged_df = merged_df.dropna(subset=['PromptNumber_main']).copy()
+        
+        # 7. Calculate difference and find the best match from valid rows
+        valid_merged_df['Diff'] = abs(
+            valid_merged_df['PromptNumber_system'] - 
+            valid_merged_df['PromptNumber_main']
+        )
+        
+        # Find the main dataset row with closest sequence number
+        best_matches = valid_merged_df.loc[
+            valid_merged_df.groupby(
+                ['CallID', 'PromptNumber_system']
+            )['Diff'].idxmin()
+        ]
+        
+        # 8. Clean up and return the final dataframe
+        final_df = best_matches.reset_index(drop=True)
+
+        for col in self.drop_cols:
+            if col in final_df.columns:
+                final_df = final_df.drop(columns=[col])
+        
+        self.df_system_features = final_df.rename(columns={'IQMedian_system': 'IQMedian'})
+
+    def run_pipeline(self):
+        """
+        Runs the full exclusion workflow in the correct logical order.
+        """
+        print("Starting exclusion pipeline...")
+        
+        self.check_wav_validity()
+        self.validate_callids()
+        self.exclude_dialogues_manually()
+        breakpoint()
+        self.exclude_silent_users()
+        self.exclude_silent_agents()
+
+        breakpoint()
+        
+        print(f"Pipeline complete. Remaining rows: {len(self.df_system_features)}")
+        return self.df_system_features, self.exclusion_map

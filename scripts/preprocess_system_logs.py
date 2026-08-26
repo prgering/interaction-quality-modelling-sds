@@ -52,7 +52,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Preprocess system log features.")
 
     parser.add_argument("--output-dir", 
-                        default="data/processed",
+                        default="data/processed/extracted_features/",
                         help="Directory to save the processed system features.")
     parser.add_argument("--system-log-data",
                         default="data/raw/LetsGoIQ/corpus/csv/interactions_legov1.csv",

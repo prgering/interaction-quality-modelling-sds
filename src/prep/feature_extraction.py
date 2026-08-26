@@ -542,6 +542,13 @@ def run_feature_extraction_pipeline(
         df_combined = pd.read_csv(combined_transcript_path)
         print(f"Loaded existing combined transcript from {combined_transcript_path}")
 
+    if Path(output_filepaths["speech_features"]).exists() and not force:
+        print(
+            "Speech features already exist at "
+            f"{output_filepaths['speech_features']}. Skipping extraction."
+        )
+        return
+    
     print("Stage 2: Converting utterance-level data to exchange-level and " \
           "extracting turn-taking features...")
     

@@ -17,19 +17,19 @@ def is_valid_audio(filepath, filecode):
     path = Path(filepath)
     if not path.exists():
         print(f"ERROR: Audio file DOES NOT EXIST at: {path}. Skipping {filecode}.")
-        return False
+        return False, "Audio file does not exist."
     if path.stat().st_size == 0:
         print(f"ERROR: Audio file {path} is EMPTY. Skipping {filecode}.")
-        return False
+        return False, "Audio file is empty."
     try:
         with sf.SoundFile(path, 'r') as f:
             if f.frames == 0:
                 print(f"ERROR: Audio file {path} has 0 frames. Skipping {filecode}.")
-                return False
+                return False, "Audio file has 0 frames."
     except Exception as e:
         print(f"ERROR: Could not read {path}: {e}. Skipping {filecode}.")
-        return False
-    return True
+        return False, "Could not read audio file."
+    return True, None
 
 def _get_audio_files(directory, folder_type):
     """Processes audio files into a dyad/user dictionary structure."""
@@ -40,7 +40,9 @@ def _get_audio_files(directory, folder_type):
     for filepath in files:
         filecode = (re.sub(r"[^0-9]", "", filepath.name))[-11:]
 
-        if not is_valid_audio(filepath, filecode):
+        is_valid, reason = is_valid_audio(filepath, filecode)
+        if not is_valid:
+            print(f"Skipping {filecode}: {reason}")
             continue
 
         key = "dyad" if "output" in filepath.name else "user"
