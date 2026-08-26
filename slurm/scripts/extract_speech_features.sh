@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=4
 
 # ---USER REQUIRED---
-#SBATCH --partition=gpu,gpu-h100,gpu-h100-nvl
+#SBATCH --partition=gpu
 #SBATCH --qos=gpu
 #SBATCH --output=logs/extract_features/%x_%j.txt
 
