@@ -349,7 +349,13 @@ def produce_speech_embeds(
     return mean_pooled_embedding.squeeze(0).cpu().numpy()
 
 
-def acoustic_feature_extraction(audio_files_dict, df, pretrained_speech_models = None, device = None):
+def acoustic_feature_extraction(
+        audio_files_dict, 
+        df, 
+        pretrained_speech_models = None, 
+        device = None,
+        skip_embeddings = False
+    ):
     """Extract acoustic embeddings and OpenSMILE features from audio_files."""
 
     # 1. OpenSMILE Feature Extraction
@@ -392,74 +398,74 @@ def acoustic_feature_extraction(audio_files_dict, df, pretrained_speech_models =
 
     opensmile_df = pd.DataFrame(opensmile_rows).set_index('OriginalIndex')
 
-    # 2. Speech Embedding Extraction
+    # 2. Speech Embedding Extraction (Skipped if skip_embeddings is True)
     all_speech_embed_dfs = []
 
-    # Loop through each pretrained speech model to extract embeddings
-    for model_name in (pretrained_speech_models or []):
+    if not skip_embeddings:
+        for model_name in (pretrained_speech_models or []):
 
-        model_tag = model_name.split('/')[-1].replace('-', '_')
-        model_prefix = f"{model_tag}_Emb"
+            model_tag = model_name.split('/')[-1].replace('-', '_')
+            model_prefix = f"{model_tag}_Emb"
 
-        print(f'Extracting speech embeddings using model: {model_tag}')
+            print(f'Extracting speech embeddings using model: {model_tag}')
 
-        config = AutoConfig.from_pretrained(model_name)
-        if config.model_type in ["wavlm", "hubert"]:
-            speech_processor = AutoFeatureExtractor.from_pretrained(model_name)
-        else:
-            speech_processor = AutoProcessor.from_pretrained(model_name)
-        
-        speech_model = AutoModel.from_pretrained(model_name).to(device)
-        speech_model.eval()
-        speech_embed_dims = speech_model.config.hidden_size  # Dynamically get embedding dimension
-        
-        current_model_features = []
+            config = AutoConfig.from_pretrained(model_name)
+            if config.model_type in ["wavlm", "hubert"]:
+                speech_processor = AutoFeatureExtractor.from_pretrained(model_name)
+            else:
+                speech_processor = AutoProcessor.from_pretrained(model_name)
+            
+            speech_model = AutoModel.from_pretrained(model_name).to(device)
+            speech_model.eval()
+            speech_embed_dims = speech_model.config.hidden_size  # Dynamically get embedding dimension
+            
+            current_model_features = []
 
-        # Iterate through each row (exchange)
-        for index, row in df.iterrows():
-            current_callid = str(row['CallID']).split('.')[0]
-            start, end = row['StartTime'], row['EndTime']
+            # Iterate through each row (exchange)
+            for index, row in df.iterrows():
+                current_callid = str(row['CallID']).split('.')[0]
+                start, end = row['StartTime'], row['EndTime']
 
-            audio_path = audio_files_dict.get(current_callid, {}).get("dyad")
+                audio_path = audio_files_dict.get(current_callid, {}).get("dyad")
 
-            # Speech Embedding Generation (Run for every model in loop)
-            if audio_path:
-                try:
-                    speech_embeds = produce_speech_embeds(
-                        audio_file_path= audio_path, 
-                        start_time= start, end_time=end, 
-                        model = speech_model, processor= speech_processor, 
-                        device = device
-                    )
+                # Speech Embedding Generation (Run for every model in loop)
+                if audio_path:
+                    try:
+                        speech_embeds = produce_speech_embeds(
+                            audio_file_path= audio_path, 
+                            start_time= start, end_time=end, 
+                            model = speech_model, processor= speech_processor, 
+                            device = device
+                        )
 
-                    speech_features_dict = {
-                        f'{model_prefix}{i}': val 
-                        for i, val in enumerate(speech_embeds.flatten())
-                    }
+                        speech_features_dict = {
+                            f'{model_prefix}{i}': val 
+                            for i, val in enumerate(speech_embeds.flatten())
+                        }
 
-                except Exception as e:
-                    print(f"Unhandled error during Wav2Vec embedding generation for {audio_path} from {start}-{end}: {e}")
+                    except Exception as e:
+                        print(f"Unhandled error during Wav2Vec embedding generation for {audio_path} from {start}-{end}: {e}")
+                        speech_features_dict = {
+                            f'{model_prefix}{i}': np.nan 
+                            for i in range(speech_embed_dims)
+                        }
+                        
+                else:
                     speech_features_dict = {
                         f'{model_prefix}{i}': np.nan 
                         for i in range(speech_embed_dims)
                     }
-                    
-            else:
-                speech_features_dict = {
-                    f'{model_prefix}{i}': np.nan 
-                    for i in range(speech_embed_dims)
-                }
 
-            speech_features_dict['OriginalIndex'] = index
-            current_model_features.append(speech_features_dict)
+                speech_features_dict['OriginalIndex'] = index
+                current_model_features.append(speech_features_dict)
 
-        model_df = pd.DataFrame(current_model_features).set_index('OriginalIndex')
-        all_speech_embed_dfs.append(model_df)
+            model_df = pd.DataFrame(current_model_features).set_index('OriginalIndex')
+            all_speech_embed_dfs.append(model_df)
 
-        # Clear VRAM between models
-        del speech_model, speech_processor
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+            # Clear VRAM between models
+            del speech_model, speech_processor
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
     # Merge all features into a single DataFrame
     df_final = pd.concat([df, opensmile_df] + all_speech_embed_dfs, axis=1)
@@ -520,7 +526,8 @@ def run_feature_extraction_pipeline(
         output_filepaths,
         config_dict, 
         device = None,
-        force = False
+        force = False,
+        skip_embeddings = False
     ):
 
     combined_transcript_path = output_filepaths.get("combined_transcript")
@@ -544,14 +551,17 @@ def run_feature_extraction_pipeline(
         duration_threshold = config_dict["duration_threshold"]
     ) 
 
-    print("Stage 3: Extracting text embeddings...")
-
-    df_text_emb = extract_text_embeddings(
-        df_exchange, 
-        column= "CombinedTranscript", 
-        pretrained_text_models= config_dict["pretrained_model_text"], 
-        device= device
-    )
+    if skip_embeddings:
+        print("Skipping text embedding extraction as per configuration.")
+        df_text_emb = df_exchange
+    else:
+        print("Stage 3: Extracting text embeddings...")
+        df_text_emb = extract_text_embeddings(
+            df_exchange, 
+            column= "CombinedTranscript", 
+            pretrained_text_models= config_dict["pretrained_model_text"], 
+            device= device
+        )
 
     print("Stage 4: Extracting acoustic features...")
 
@@ -559,13 +569,16 @@ def run_feature_extraction_pipeline(
         directory_dict = {"audio": audio_dir}, 
         folder_to_process = "audio"
     )
-    
+
+    if skip_embeddings:
+        print("Only extracting OpenSMILE features as per configuration.")
     
     df_features = acoustic_feature_extraction(
         audio_files_dict, 
         df_text_emb, 
         pretrained_speech_models= config_dict["pretrained_model_speech"], 
-        device= device
+        device= device,
+        skip_embeddings=skip_embeddings
     )
 
     print("Stage 5: Preparing features for ML...")

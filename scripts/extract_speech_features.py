@@ -2,7 +2,7 @@
 Extract Speech features from audio recordings and validated transcripts in the LEGO Corpus.
 
 This script performs the following steps:
-    1. Load the validated agent and user transcripts from the LEGO Corpus.
+    1. Load the validated system and user transcripts from the LEGO Corpus.
     2. Load the corresponding audio recordings for each transcript entry.
     3. Extract a comprehensive set of speech features from the audio recordings,
         including eGeMAPS features (using the openSMILE toolkit), speech embeddings (using
@@ -63,7 +63,9 @@ def parse_args():
     parser.add_argument("--debug",
                         action="store_true",
                         help="Enable debug model to test code on a small subset of data.")
-
+    parser.add_argument("--skip-embeddings",
+                        action="store_true",
+                        help="Skip extracting embeddings and only extract OpenSMILE features.")
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -94,7 +96,9 @@ if __name__ == "__main__":
 
     output_file_paths = {
         "combined_transcript": directories["transcripts"] / "combined_transcript.csv",
-        "speech_features": directories["speech_features"] / "speech_features.csv"
+        "speech_features": directories["speech_features"] / (
+            "speech_features_no_embeds.csv" if args.skip_embeddings else "speech_features.csv"
+        )
     }
 
     if args.debug:
@@ -115,6 +119,7 @@ if __name__ == "__main__":
         output_filepaths=output_file_paths,
         config_dict=CONFIG,
         device=device,
-        force=args.force
+        force=args.force,
+        skip_embeddings=args.skip_embeddings
     )
     

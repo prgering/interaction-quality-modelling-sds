@@ -30,19 +30,21 @@ fi
 conda activate iq_predict_env
 
 # --- Task logic ---
+PYTHON_SCRIPT="scripts.extract_speech_features"
+EXTRA_ARGS=""
+
 case "$MODE" in
-    "static_speech") 
-        PYTHON_SCRIPT="scripts.extract_static_speech_features" 
-        ;;
     "speech") 
         module load CUDA/12.4.0 cuDNN/9.1.1.17-CUDA-12.4.0 2>/dev/null || true
-        PYTHON_SCRIPT="scripts.extract_speech_features" 
+        ;;
+    "static_speech") 
+        EXTRA_ARGS="--skip-embeddings"
         ;;
     *)
-        echo "Invalid mode: $MODE. Please choose system, static, or speech."
+        echo "Invalid mode: $MODE. Valid options are 'speech' or 'static_speech'."
         exit 1
         ;;
 esac
 
 # --- Execution ---
-python -m "$PYTHON_SCRIPT"
+python -m "$PYTHON_SCRIPT" $EXTRA_ARGS

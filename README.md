@@ -62,6 +62,32 @@ python scripts/align_system_prompts.py
 
 #### Step D: Speech Feature Extraction
 
+> **Note:** User and agent transcripts should be manually verified before running this step.
+
+Combine user and agent transcripts and extract exchange-level speech features (OpenSMILE acoustic features, pretrained speech embeddings, and text embeddings).
+
+**1. Local Execution (CPU / Fast Mode)**
+Extracts OpenSMILE features only
+```bash
+python -m scripts/extract_speech_features --skip-embeddings
+```
+
+Extracts full speech features for small subset of data
+```bash
+python -m scripts/extract_speech_features --debug
+```
+
+**2. HPC Execution via Slurm**
+Extracts OpenSMILE features only
+```bash
+sbatch slurm/scripts/extract_speech_features.sh static_speech
+```
+
+Extracts full speech features (Requires GPU)
+```bash
+sbatch slurm/scripts/extract_speech_features.sh speech
+```
+
 #### Step E: Filter System Log Features
 
 #### Step F: Prepare Feature Sets for Machine Learning
