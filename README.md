@@ -66,15 +66,15 @@ python scripts/align_system_prompts.py
 
 Combine user and agent transcripts and extract exchange-level speech features (OpenSMILE acoustic features, pretrained speech embeddings, and text embeddings).
 
-**1. Local Execution (CPU / Fast Mode)**
+* **1. Local Execution (CPU / Fast Mode)**
 
-Extracts OpenSMILE features only
+* Extracts OpenSMILE features only
 
 ```bash
 python -m scripts/extract_speech_features --skip-embeddings
 ```
 
-Extracts full speech features for small subset of data
+* Extracts full speech features for small subset of data
 
 ```bash
 python -m scripts/extract_speech_features --debug
@@ -127,5 +127,13 @@ Distributed under the project_license. See `LICENSE.txt` for more information.
 	year         = 2012,
 	booktitle    = {Proceedings of the Eighth International Conference on Language Resources and Evaluation ({LREC}'12)},
 	pages        = {3369--3373},
+}
+@inproceedings{eyben2010opensmile,
+	title        = {{openSMILE} -- The Munich Versatile and Fast Open-Source Audio Feature Extractor},
+	author       = {Eyben, Florian and W{\"o}llmer, Martin and Schuller, Bj{\"o}rn},
+	year         = 2010,
+	booktitle    = {MM'10 - Proceedings of the ACM Multimedia 2010 International Conference},
+	pages        = {1459--1462},
+	doi          = {10.1145/1873951.1874246},
 }
 ```

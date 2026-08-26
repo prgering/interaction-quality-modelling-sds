@@ -22,7 +22,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.utils import get_base_path, set_all_seeds, resolve_path, get_filepaths
+from src.utils import get_base_path, set_all_seeds, resolve_path
 from src.prep.speech_feature_extractor import run_feature_extraction_pipeline
 
 CONFIG = {
