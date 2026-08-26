@@ -237,3 +237,6 @@ data/processed/*
 
 # Ignore vscode folder
 .vscode/
+
+# Ignore logs folder
+logs/

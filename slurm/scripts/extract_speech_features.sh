@@ -3,7 +3,12 @@
 #SBATCH --time=20:00:00
 #SBATCH --nodes=1
 #SBATCH --mem=20G
+#SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=4
+
+# ---USER REQUIRED---
+#SBATCH --partition=gpu,gpu-h100,gpu-h100-nvl
+#SBATCH --qos=gpu
 #SBATCH --output=logs/extract_features/%x_%j.txt
 
 # ---Configuration ---
