@@ -305,6 +305,9 @@ class DataPreprocessor:
         """
         Run preprocessing pipeline to extract semantic parse information,
         derive text embeddings and drop unnecessary columns.
+
+        This method was updated to ensure all window-level and dialogue-level 
+        features were excluded (including those that started with 'Mean_'). 
         """
         # Extract Semantic Parse information into seperate binary variables
         sem_keys = self.extract_keys_sem_parse()
@@ -376,7 +379,7 @@ class DialogueExcluder:
 
         self.manual_exclude_list = config.get("excluded_files", [])
         self.null_vals = config.get("null_vals", [])
-        self.drop_cols = config.get("columns_to_drop", [])
+        self.drop_cols = config.get("cols_to_drop", [])
         
         self.valid_wav_paths = defaultdict(Path)
         self.exclusion_map = defaultdict(str)
