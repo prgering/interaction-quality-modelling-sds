@@ -91,6 +91,11 @@ sbatch slurm/scripts/extract_speech_features.sh speech
 
 ### Step E: Filter System Log Features
 
+Excluding dialogues from the system-derived features if there are missing audio files or dialogues with no user or agent speech. This step can only be run once validated user and agent transcripts have been produced.
+```bash
+python scripts/filter_system_features.py
+```
+
 ### Step F: Prepare Feature Sets for Machine Learning
 
 ### Step G: Hyperparameter Tuning with LSTM
