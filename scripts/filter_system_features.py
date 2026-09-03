@@ -21,11 +21,10 @@ from src.utils import get_base_path, resolve_path, set_all_seeds
 
 
 CONFIG = {
-    "debug_limit": 10,  # Limit for debug mode
+    "debug_limit": 100,  # Limit for debug mode
     "null_vals": ["", "<NA>", "nan","NA", "null", "None", "\\N", " "],
     "cols_to_drop": [
-        "Transcript", "Speaker", "Diff", "PromptNumber_df1", 
-        'StartTime', 'EndTime', 'PromptNumber_df2', "Prompt"
+        "Transcript", "Speaker", 'StartTime', 'EndTime', "Prompt"
     ],
     # Excluded files where user talks to third party
     "excluded_files": [

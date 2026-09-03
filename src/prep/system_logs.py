@@ -374,11 +374,9 @@ class DialogueExcluder:
         # Extract config settings
         config = config if config is not None else {}
 
-        self.manual_exclude_list = config.get("files_to_exclude", [])
+        self.manual_exclude_list = config.get("excluded_files", [])
         self.null_vals = config.get("null_vals", [])
-        self.drop_cols = config.get("columns_to_drop", {}).get(
-            "exclusion_code", []
-        )
+        self.drop_cols = config.get("columns_to_drop", [])
         
         self.valid_wav_paths = defaultdict(Path)
         self.exclusion_map = defaultdict(str)
@@ -486,8 +484,7 @@ class DialogueExcluder:
 
         self.df_system_features = (
             self.df_system_features[self.df_system_features['CallID'].isin(active_call_ids)]
-        )
-        
+        )        
 
     def _standardise_prompt(self, prompt):
         """
@@ -504,41 +501,44 @@ class DialogueExcluder:
         """
         Filters dataset to only include rows with matching valid agent
         transcripts.
-        
-        Uses CallID, Prompt, and IQMedian to align transcripts, then selects the 
-        best match based on the relative sequence (PromptNumber).
         """
-        # 1. Add sequence numbers to help with fuzzy alignment
-        self.df_system_features['PromptNumber'] = (
-            self.df_system_features.groupby('CallID').cumcount()
-        )
-        self.system_transcripts['PromptNumber'] = (
-            self.system_transcripts.groupby('CallID').cumcount()
-        )
+        if self.system_transcripts is None or self.df_system_features is None:
+            raise ValueError("System transcript or system features DataFrame is not set.")
 
-        # 2. Data Cleaning to ease matching
-        self.system_transcripts['CallID'] = (
-            self.system_transcripts['CallID'].ffill()
-        )
-        self.system_transcripts['Speaker'] = (
-            self.system_transcripts['Speaker'].ffill()
-        )
-        self.system_transcripts['CallID'] = (
-            self.system_transcripts['CallID'].astype(int).astype(str)
+        system_ts = self.system_transcripts.copy()
+        main_df = self.df_system_features.copy()
+
+        # 1. Add sequence numbers to help with fuzzy alignment
+        main_df['PromptNumber'] = main_df.groupby('CallID').cumcount()
+        system_ts['PromptNumber'] = system_ts.groupby('CallID').cumcount()
+        
+
+        # 2. Standardise CallID and Speaker formatting
+        system_ts['CallID'] = system_ts['CallID'].ffill()
+        if 'Speaker' in system_ts.columns:
+            system_ts['Speaker'] = system_ts['Speaker'].ffill()
+
+        system_ts['CallID'] = (
+            system_ts['CallID']
+            .astype(str)
+            .str.replace(r'\.0$', '', regex=True)
+            .str.strip()
         )
 
         # 3. Filter both dataframes to only include common CallIDs
-        common_call_ids = set(self.df_system_features['CallID']).intersection(
-            set(self.system_transcripts['CallID'])
+        common_call_ids = (
+            set(main_df['CallID']).intersection(set(system_ts['CallID']))
         )
+
         filtered_ds = (
-            self.df_system_features[
-                self.df_system_features['CallID'].isin(common_call_ids)
+            main_df[
+                main_df['CallID'].isin(common_call_ids)
             ].copy()
         )
+
         filtered_system_ts = (
-            self.system_transcripts[
-                self.system_transcripts['CallID'].isin(common_call_ids)
+            system_ts[
+                system_ts['CallID'].isin(common_call_ids)
             ].copy()
         )
 
@@ -575,13 +575,12 @@ class DialogueExcluder:
         # 6. Drop rows where the merge failed (i.e., PromptNumber_main is NaN)
         valid_merged_df = merged_df.dropna(subset=['PromptNumber_main']).copy()
         
-        # 7. Calculate difference and find the best match from valid rows
+        # 7. Find the best match from valid rows
         valid_merged_df['Diff'] = abs(
             valid_merged_df['PromptNumber_system'] - 
             valid_merged_df['PromptNumber_main']
         )
         
-        # Find the main dataset row with closest sequence number
         best_matches = valid_merged_df.loc[
             valid_merged_df.groupby(
                 ['CallID', 'PromptNumber_system']
@@ -589,13 +588,12 @@ class DialogueExcluder:
         ]
         
         # 8. Clean up and return the final dataframe
-        final_df = best_matches.reset_index(drop=True)
-
-        for col in self.drop_cols:
-            if col in final_df.columns:
-                final_df = final_df.drop(columns=[col])
+        temp_cols = ['PromptNumber_system', 'PromptNumber_main', 'Diff']
+        target_cols_to_drop = set(temp_cols + list(self.drop_cols))
         
-        self.df_system_features = final_df.rename(columns={'IQMedian_system': 'IQMedian'})
+        self.df_system_features = best_matches.drop(
+            columns=[col for col in target_cols_to_drop if col in best_matches.columns]
+        )
 
     def run_pipeline(self):
         """
@@ -606,11 +604,8 @@ class DialogueExcluder:
         self.check_wav_validity()
         self.validate_callids()
         self.exclude_dialogues_manually()
-        breakpoint()
         self.exclude_silent_users()
         self.exclude_silent_agents()
-
-        breakpoint()
         
         print(f"Pipeline complete. Remaining rows: {len(self.df_system_features)}")
         return self.df_system_features, self.exclusion_map
