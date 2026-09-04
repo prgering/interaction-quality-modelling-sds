@@ -31,9 +31,6 @@ def load_feature_data(dataset_path, dataset_type, remove_first_turn = False):
     df = optimize_dataframe_memory(df)
     print(f"Size of {dataset_type} df (after optimization): {get_df_size(df):.4f} GB\n", flush = True)
 
-    nan_columns = df.isna().sum()
-    print(f"{dataset_type} df columns with missing values:")
-    print(nan_columns[nan_columns > 0])
     return df
 
 
@@ -64,10 +61,6 @@ def run_pre_processing_steps(train_df, test_df, pca_params_dict):
 
     X_test = test_df[feature_columns]
     y_test = test_df['IQMedian']
-
-    nan_columns = X_train.isna().sum()
-    print("X_train columns with missing values:")
-    print(nan_columns[nan_columns > 0])
 
     # Define preprocessing pipelines for different feature groups
     speechf_text_pipeline = Pipeline([

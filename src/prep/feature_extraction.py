@@ -245,10 +245,10 @@ def extract_text_embeddings(df, column, pretrained_text_models, device=None, bat
     """
     Function to extract text embeddings using pretrained transformer models.
     """
-    # Auto-detect device if not provided
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    df = df.reset_index(drop=True)
     texts = df[column].astype(str).tolist()
     all_text_embed_dfs = []
 
@@ -343,7 +343,9 @@ def produce_speech_embeds(
         )
 
     # Process and run inference
-    inputs = processor(waveform.squeeze(0), sampling_rate=sr, return_tensors="pt", padding=True)
+    raw_audio_np = waveform.squeeze(0).cpu().numpy()
+
+    inputs = processor(raw_audio_np, sampling_rate=sr, return_tensors="pt", padding=True)
     inputs = {k: v.to(device) for k, v in inputs.items()}
 
     with torch.no_grad():
@@ -364,6 +366,9 @@ def acoustic_feature_extraction(
     ):
     """Extract acoustic embeddings and OpenSMILE features from audio_files."""
 
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
     # 1. OpenSMILE Feature Extraction
     smile = opensmile.Smile(
         feature_set=opensmile.FeatureSet.eGeMAPSv02,
@@ -375,7 +380,7 @@ def acoustic_feature_extraction(
     opensmile_rows = []
 
     for index, row in df.iterrows():
-        current_callid = str(row['CallID']).split('.')[0]
+        current_callid = str(int(float(row['CallID']))) if not pd.isna(row['CallID']) else ""
         start, end = row['StartTime'], row['EndTime']
         audio_path = audio_files_dict.get(current_callid, {}).get("dyad")
 
