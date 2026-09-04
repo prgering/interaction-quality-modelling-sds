@@ -125,7 +125,13 @@ def extract_turn_taking_features(df):
     return df.drop(columns=['PreviousUserEndTime'])
 
 def combine_exchange_level_data(df, response_token_list = None, duration_threshold = 1.0):
-    """Convert utterance-level DataFrame into exchange-level DataFrame."""
+    """
+    Convert utterance-level DataFrame into exchange-level DataFrame.
+    
+    Note that the old version of this function did not calculate InternalPause features correctly
+    due to incorrect indentation of the previous_end_time assignment. This version fixes that issue
+    and calculates features correctly.
+    """
 
     # Convert token list to set for faster membership checking
     response_tokens = set(response_token_list) if response_token_list else None

@@ -4,6 +4,10 @@ Excluding dialogues from the system-derived feature set.
 The criteria for exclusion include:
 - Missing audio files
 - Dialogues with no user or agent speech
+
+Note that the old version of this code did not call "cols_to_drop"
+properly, resulting in these columns being retained in the filtered 
+system features. This version fixes that issue.
 """
 
 # Imports
