@@ -62,6 +62,10 @@ def run_pre_processing_steps(train_df, test_df, pca_params_dict):
     X_test = test_df[feature_columns]
     y_test = test_df['IQMedian']
 
+    nan_columns = X_train.isna().sum()
+    print("Columns with missing values:")
+    print(nan_columns[nan_columns > 0])
+
     # Define preprocessing pipelines for different feature groups
     speechf_text_pipeline = Pipeline([
         ('scaler', StandardScaler()),
