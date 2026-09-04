@@ -434,13 +434,13 @@ def acoustic_feature_extraction(
 
             # Iterate through each row (exchange)
             for index, row in df.iterrows():
-                current_callid = str(row['CallID']).split('.')[0]
+                current_callid = str(int(float(row['CallID']))) if not pd.isna(row['CallID']) else ""
                 start, end = row['StartTime'], row['EndTime']
 
                 audio_path = audio_files_dict.get(current_callid, {}).get("dyad")
 
                 # Speech Embedding Generation (Run for every model in loop)
-                if audio_path:
+                if audio_path and not pd.isna(start) and not pd.isna(end):
                     try:
                         speech_embeds = produce_speech_embeds(
                             audio_file_path= audio_path, 

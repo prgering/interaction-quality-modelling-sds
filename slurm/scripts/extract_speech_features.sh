@@ -26,10 +26,10 @@ EXTRA_ARGS=""
 
 case "$MODE" in
     "speech") 
-        EXTRA_ARGS=""
+        EXTRA_ARGS="--force"
         ;;
     "static_speech") 
-        EXTRA_ARGS="--skip-embeddings"
+        EXTRA_ARGS="--skip-embeddings --force"
         ;;
     *)
         echo "Invalid mode: $MODE. Valid options are 'speech' or 'static_speech'."
