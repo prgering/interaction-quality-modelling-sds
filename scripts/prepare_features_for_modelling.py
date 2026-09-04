@@ -12,6 +12,11 @@ from src.models.cli_args import add_feature_set_args, add_pca_args
 from src.models.pca_pipeline import load_feature_data, train_opt_split, run_pre_processing_steps
 
 
+CONFIG = {
+    "debug_limit": 100,
+    "train_size": 0.8,
+}
+
 def parse_args():
     """Parses command line arguments for PCA preprocessing."""
     parser = argparse.ArgumentParser(description="Hyperparameter settings for preprocessing with PCA.")
@@ -34,6 +39,11 @@ def parse_args():
         default=42, 
         type=int, 
         help="Random seed for reproducibility."
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable debug mode to test code on a small subset of data."
     )
 
     return parser.parse_args()
@@ -77,8 +87,13 @@ if __name__ == "__main__":
         dataset_type=args.dataset_type
     )
 
+    if args.debug:
+        df_features = df_features.head(CONFIG["debug_limit"])
+
     train_df, eval_df = train_opt_split(
-        df_features, grouping_col="CallID", train_size=0.8
+        df_features, grouping_col="CallID", 
+        train_size=CONFIG["train_size"],
+        random_state=args.seed
     )
 
     # Run preprocessing steps - PCA and Scaling
@@ -97,6 +112,8 @@ if __name__ == "__main__":
             filename += f"_sytxtpca{pca_hyperparams['n_comp_systemf_text']}_sptxtpca_spwpca"
         elif args.dataset_type == "speech":
             filename += f"_sytxtpca_sptxtpca{pca_hyperparams['n_comp_speechf_text']}_spwpca{pca_hyperparams['n_comp_speechf_wav']}"
+        if args.debug:
+            filename += "_debug"
         filename += ".csv"
         
         file_path = directories["output"] / filename

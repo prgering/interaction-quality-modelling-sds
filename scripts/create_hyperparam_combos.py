@@ -1,96 +1,107 @@
 import itertools
 import argparse
-import os
+import sys
+from pathlib import Path
 
-# Specify Experiment Name
-parser = argparse.ArgumentParser(description="Generate hyperparameter combinations for hyperparameter tuning.")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-parser.add_argument(
-    "--experiment_name",
-    type=str,
-    default="speech_lstm",
-    help="Name of the experiment (default: 'speech_lstm')."
-)
+from src.utils import get_base_path, resolve_path
 
-args = parser.parse_args()
-experiment_name = args.experiment_name
+EXPERIMENT_GRIDS = {
+    "system_svm": {
+        "auto_features_only": [False, True],
+        "systemf_text_pca": [0.5, 0.6, 0.7, 0.8],
+        "text_embedding_model": ["sbert", "roberta", "todbert"],
+    },
+    "speech_preprocess": {
+        "speechf_text_pca": [0.5, 0.6, 0.7, 0.8],
+        "speechf_wav_pca": [0.5, 0.6, 0.7, 0.8],
+        "text_embedding_model": ["sbert", "roberta", "todbert"],
+        "speech_embedding_model": ["wav2vec", "hubert", "wavlm"],
+    },
+    "system_lstm": {
+        "use_attention": [False, True],
+        "bidirectional": [False, True],
+        "hidden_size": [128, 256, 384],
+        "auto_features_only": [False, True],
+        "systemf_text_pca": [0.5, 0.6, 0.7, 0.8],
+        "text_embedding_model": ["sbert", "roberta", "todbert"],
+    },
+    "speech_lstm": {
+        "use_attention": [False, True],
+        "bidirectional": [False, True],
+        "hidden_size": [128, 256, 384],
+        "speechf_text_pca": [0.5, 0.6, 0.7, 0.8],
+        "speechf_wav_pca": [0.5, 0.6, 0.7, 0.8],
+    },
+    "system_end2end": {
+        "window_size": [5, 10, 15],
+        "transformer_lr": [5e-6, 1e-5, 5e-5],
+        "num_frozen_layers_sbert": [0, 3, 6],
+    },
+    "speech_end2end": {
+        "window_size": [5, 10, 15],
+        "transformer_lr": [5e-6, 1e-5, 5e-5],
+        "num_frozen_layers_speech_encoders": [0, 6, 12],
+    },
+}
 
-print(f"Generating hyperparameter combinations for experiment: {experiment_name}")
-
-# Define the hyperparameter options
-hidden_size_options = [128, 256, 384]
-bidirectional_options = [False, True]
-use_attention_options = [False, True]
-auto_features_only_options = [False, True]
-speechf_text_pca_options = [0.5, 0.6, 0.7, 0.8]
-systemf_text_pca_options = [0.5, 0.6, 0.7, 0.8]
-speechf_speech_pca_options = [0.5, 0.6, 0.7, 0.8]
-text_embedding_model_options = ["sbert", "roberta", "todbert"]
-speech_embedding_model_options = ["wav2vec", "hubert", "wavlm"]
-
-# Hyperparameters for end-to-end model
-num_lstm_layers_options = [2]
-head_lr_options = [5e-4]
-window_size_options = [5, 10, 15]
-transformer_lr_options = [5e-6, 1e-5, 5e-5]
-num_frozen_layers_sbert_options = [0, 3, 6]
-num_frozen_layers_speech_encoders_options = [0, 6, 12]
-
-combinations = []
-
-if experiment_name == "system_svm":
-    combinations = itertools.product(
-        auto_features_only_options,
-        systemf_text_pca_options,
-        text_embedding_model_options,
+def parse_args():
+    parser = argparse.ArgumentParser(description="Generate hyperparameter combinations for hyperparameter tuning.")
+    parser.add_argument(
+        "--experiment-name",
+        type=str,
+        default="speech_lstm",
+        help="Name of the experiment (default: 'speech_lstm')."
     )
-elif experiment_name == "speech_svm":
-    combinations = itertools.product(
-        speechf_text_pca_options,
-        speechf_speech_pca_options,
-        text_embedding_model_options,
-        speech_embedding_model_options,
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="slurm/configs",
+        help="Directory to save the hyperparameter combinations (default: 'slurm/configs')."
     )
-elif experiment_name == "system_lstm":
-    combinations = itertools.product(
-        use_attention_options,
-        bidirectional_options,
-        hidden_size_options,
-        auto_features_only_options,
-        systemf_text_pca_options,
-        text_embedding_model_options,
-    )
-elif experiment_name == "speech_lstm":
-    combinations = itertools.product(
-        use_attention_options,
-        bidirectional_options,
-        hidden_size_options,
-        speechf_text_pca_options,
-        speechf_speech_pca_options,
-    )
-elif experiment_name == "system_end2end":
-    combinations = itertools.product(
-        window_size_options,
-        transformer_lr_options,
-        num_frozen_layers_sbert_options,
-    )
-elif experiment_name == "speech_end2end":
-    combinations = itertools.product(
-        window_size_options,
-        transformer_lr_options,
-        num_frozen_layers_speech_encoders_options,
+    parser.add_argument(
+        "--output-filename",
+        required=True,
+        type=str,
+        default=None,
+        help="Output file to save the hyperparameter combinations (required)."
     )
 
-# Define the output directory
-output_directory = "/mnt/parscratch/users/acp23prg/iq_lego_repo/slurm/configs"
-os.makedirs(output_directory, exist_ok=True)
+    return parser.parse_args()
 
-output_filename = f"hyperparameter_combinations_{experiment_name}.txt"
-output_file_path = os.path.join(output_directory, output_filename)
 
-# Write combinations to the file
-with open(output_file_path, 'w') as f:
-    for combo in combinations:
-        f.write(" ".join(map(str, combo)) + "\n")
+def main():
+    args = parse_args()
 
-print("Successfully wrote all hyperparameter combinations to the file.")
+    base = get_base_path()
+
+    output_dir = resolve_path(base, args.output_dir)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.experiment_name not in EXPERIMENT_GRIDS:
+        raise ValueError(f"Experiment name '{args.experiment_name}' is not recognized. Please choose from {list(EXPERIMENT_GRIDS.keys())}.")
+
+    grid = EXPERIMENT_GRIDS[args.experiment_name]
+    keys = list(grid.keys())
+    combinations = list(itertools.product(*grid.values()))
+
+    output_file_path = output_dir / f"{args.output_filename}"
+
+    # Write combinations to the file
+    with open(output_file_path, 'w') as f:
+        for combo in combinations:
+            f.write(" ".join(map(str, combo)) + "\n")
+
+    # Console Summary
+    print(f"Experiment: '{args.experiment_name}'")
+    print(f"Parameters: {', '.join(keys)}")
+    print(f"Successfully generated {len(combinations)} combinations at:")
+    print(f"  -> {output_file_path}")
+    print(f"\nSlurm Header Setting: #SBATCH --array=1-{len(combinations)}")
+
+if __name__ == "__main__":
+    main()

@@ -138,8 +138,8 @@ if __name__ == "__main__":
             f.write(f"{filecode}: {reason}\n")
 
         f.write(
-            f"{filecodes_excluded_count} files excluded out of"
-            f"{total_file_count} \n{final_filecodes_count} files included" 
+            f"{filecodes_excluded_count} files excluded out of {total_file_count}"
+            f"\n{final_filecodes_count} files included" 
             f"\n{percent_excluded}% of files excluded"
         )
 
