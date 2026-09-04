@@ -32,6 +32,8 @@ CONFIG = {
     "null_vals": ["", " ", "nan", "NaN", "N/A", "None", "null", "NULL", "none"],
     "pretrained_model_text": ["FacebookAI/roberta-base", "TODBERT/TOD-BERT-JNT-V1", "all-MiniLM-L6-v2"],
     "pretrained_model_speech": ["facebook/wav2vec2-base-960h", "microsoft/wavlm-base", "facebook/hubert-base-ls960"],
+    "debug_model_text": ["prajjwal1/bert-tiny"],
+    "debug_model_speech": ["patrickvonplaten/tiny-wav2vec2-no-tokenizer"],
 }
 
 def parse_args():
@@ -120,6 +122,8 @@ if __name__ == "__main__":
         config_dict=CONFIG,
         device=device,
         force=args.force,
-        skip_embeddings=args.skip_embeddings
+        skip_embeddings=args.skip_embeddings,
+        debug=args.debug
+
     )
     

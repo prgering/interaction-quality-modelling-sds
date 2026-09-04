@@ -15,6 +15,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from scripts.align_system_prompts import CONFIG
 from src.utils import get_filepaths
 
 #---------------------------------- Functions -------------------------------------------------
@@ -420,12 +421,13 @@ def acoustic_feature_extraction(
 
             print(f'Extracting speech embeddings using model: {model_tag}')
 
-            config = AutoConfig.from_pretrained(model_name)
-            if config.model_type in ["wavlm", "hubert"]:
-                speech_processor = AutoFeatureExtractor.from_pretrained(model_name)
-            else:
-                speech_processor = AutoProcessor.from_pretrained(model_name)
+            # config = AutoConfig.from_pretrained(model_name)
+            # if config.model_type in ["wavlm", "hubert"]:
+            #     speech_processor = AutoFeatureExtractor.from_pretrained(model_name)
+            # else:
+            #     speech_processor = AutoProcessor.from_pretrained(model_name)
             
+            speech_processor = AutoFeatureExtractor.from_pretrained(model_name)
             speech_model = AutoModel.from_pretrained(model_name).to(device)
             speech_model.eval()
             speech_embed_dims = speech_model.config.hidden_size  # Dynamically get embedding dimension
@@ -538,7 +540,8 @@ def run_feature_extraction_pipeline(
         config_dict, 
         device = None,
         force = False,
-        skip_embeddings = False
+        skip_embeddings = False,
+        debug = False
     ):
 
     combined_transcript_path = output_filepaths.get("combined_transcript")
@@ -569,6 +572,9 @@ def run_feature_extraction_pipeline(
         duration_threshold = config_dict["duration_threshold"]
     ) 
 
+    text_models = config_dict["debug_model_text"] if debug else config_dict["pretrained_model_text"]
+    speech_models = config_dict["debug_model_speech"] if debug else config_dict["pretrained_model_speech"]
+
     if skip_embeddings:
         print("Skipping text embedding extraction as per configuration.")
         df_text_emb = df_exchange
@@ -577,7 +583,7 @@ def run_feature_extraction_pipeline(
         df_text_emb = extract_text_embeddings(
             df_exchange, 
             column= "CombinedTranscript", 
-            pretrained_text_models= config_dict["pretrained_model_text"], 
+            pretrained_text_models=text_models, 
             device= device
         )
 
@@ -594,7 +600,7 @@ def run_feature_extraction_pipeline(
     df_features = acoustic_feature_extraction(
         audio_files_dict, 
         df_text_emb, 
-        pretrained_speech_models= config_dict["pretrained_model_speech"], 
+        pretrained_speech_models= speech_models, 
         device= device,
         skip_embeddings=skip_embeddings
     )
