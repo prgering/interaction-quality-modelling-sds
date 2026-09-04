@@ -10,12 +10,16 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.utils import get_base_path, resolve_path
 
 EXPERIMENT_GRIDS = {
+    "speech_pca": {
+        "speechf_text_pca": [0.5, 0.6, 0.7, 0.8],
+        "speechf_wav_pca": [0.5, 0.6, 0.7, 0.8],
+    },
     "system_svm": {
         "auto_features_only": [False, True],
         "systemf_text_pca": [0.5, 0.6, 0.7, 0.8],
         "text_embedding_model": ["sbert", "roberta", "todbert"],
     },
-    "speech_preprocess": {
+    "speech_svm": {
         "speechf_text_pca": [0.5, 0.6, 0.7, 0.8],
         "speechf_wav_pca": [0.5, 0.6, 0.7, 0.8],
         "text_embedding_model": ["sbert", "roberta", "todbert"],

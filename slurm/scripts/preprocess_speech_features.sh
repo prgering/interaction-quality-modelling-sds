@@ -14,7 +14,7 @@ source slurm/scripts/setup_env.sh
 mkdir -p logs/preprocess_features
 
 # --- Parse Parameters ---
-PARAMS=$(sed -n "${SLURM_ARRAY_TASK_ID}p" "$PROJECT_ROOT/slurm/configs/pretrained_model_pca_combos.txt")
+PARAMS=$(sed -n "${SLURM_ARRAY_TASK_ID}p" "$PROJECT_ROOT/slurm/configs/speech_pca_combos.txt")
 read -r SPEECHF_TEXT_PCA SPEECHF_WAV_PCA <<< "$PARAMS"
 
 # --- Execution ---
