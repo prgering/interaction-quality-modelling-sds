@@ -13,21 +13,12 @@
 
 # ---Configuration ---
 MODE=${1:-"speech"}
-PROJECT_ROOT="${SLURM_SUBMIT_DIR:-$PWD}"
-export LEGO_BASE_PATH="$PROJECT_ROOT"
-cd "$PROJECT_ROOT"
+
+# --- Source Shared Environment Setup ---
+source slurm/scripts/setup_env.sh
 
 # Ensure output log folder exists
 mkdir -p logs/extract_features
-
-# --- Conda Environment Setup ---
-if [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
-    source "$HOME/miniconda3/etc/profile.d/conda.sh"
-elif [ -f "$HOME/anaconda3/etc/profile.d/conda.sh" ]; then
-    source "$HOME/anaconda3/etc/profile.d/conda.sh"
-fi
-
-conda activate iq_predict_env
 
 # --- Task logic ---
 PYTHON_SCRIPT="scripts.extract_speech_features"
@@ -35,7 +26,7 @@ EXTRA_ARGS=""
 
 case "$MODE" in
     "speech") 
-        module load CUDA/12.4.0 cuDNN/9.1.1.17-CUDA-12.4.0 2>/dev/null || true
+        EXTRA_ARGS=""
         ;;
     "static_speech") 
         EXTRA_ARGS="--skip-embeddings"
