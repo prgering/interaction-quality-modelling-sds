@@ -77,11 +77,11 @@ def run_pre_processing_steps(train_df, test_df, pca_params_dict):
     ])
     # Map rule conditions and pipelines to feature groups
     TRANSFORMER_CONFIG = {
-        'utterance_sbert':   ({'inc': ['utterance', 'minilm']}, systemf_text_pipeline),
+        'utterance_sbert':   ({'inc': ['utterance', 'sbert']}, systemf_text_pipeline),
         'utterance_roberta': ({'inc': ['utterance', 'roberta']}, systemf_text_pipeline),
         'utterance_todbert': ({'inc': ['utterance', 'tod_bert']}, systemf_text_pipeline),
 
-        'prompt_sbert':      ({'inc': ['prompt', 'minilm']}, systemf_text_pipeline),
+        'prompt_sbert':      ({'inc': ['prompt', 'sbert']}, systemf_text_pipeline),
         'prompt_roberta':    ({'inc': ['prompt', 'roberta']}, systemf_text_pipeline),
         'prompt_todbert':    ({'inc': ['prompt', 'tod_bert']}, systemf_text_pipeline),
 
