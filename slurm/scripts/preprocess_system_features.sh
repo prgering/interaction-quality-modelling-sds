@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --mem=20G
 #SBATCH --cpus-per-task=1
-#SBATCH --array=1-4
+#SBATCH --array=0-3
 #SBATCH --output=logs/preprocess_features/%x_%A_%a.txt
 
 # --- Source Shared Environment Setup ---
