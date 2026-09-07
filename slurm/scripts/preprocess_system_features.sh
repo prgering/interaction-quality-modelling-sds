@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=preprocess_system_features
-#SBATCH --time=90:00:00
+#SBATCH --time=1:00:00
 #SBATCH --nodes=1
-#SBATCH --mem=1G
+#SBATCH --mem=20G
 #SBATCH --cpus-per-task=1
 #SBATCH --array=1-4
 #SBATCH --output=logs/preprocess_features/%x_%A_%a.txt
