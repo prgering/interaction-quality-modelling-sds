@@ -20,5 +20,6 @@ SYSTEMF_TEXT_PCA="${PCA_VALUES[$SLURM_ARRAY_TASK_ID]}"
 # --- Execution ---
 python -m scripts.prepare_features_for_modelling \
     system \
-    --systemf_text_pca ${SYSTEMF_TEXT_PCA}
+    --systemf_text_pca ${SYSTEMF_TEXT_PCA} \
+    --remove-first-turn
 

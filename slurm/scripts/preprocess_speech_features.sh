@@ -21,4 +21,5 @@ read -r SPEECHF_TEXT_PCA SPEECHF_WAV_PCA <<< "$PARAMS"
 python -m scripts.prepare_features_for_modelling \
     speech \
     --speechf_text_pca ${SPEECHF_TEXT_PCA} \
-    --speechf_wav_pca ${SPEECHF_WAV_PCA}
+    --speechf_wav_pca ${SPEECHF_WAV_PCA} \
+    --remove-first-turn

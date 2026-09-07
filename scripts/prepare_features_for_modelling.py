@@ -35,6 +35,11 @@ def parse_args():
         help="Directory to save the preprocessed features."
     )
     parser.add_argument(
+        "--remove-first-turn",
+        action="store_true",
+        help="Remove the first turn from each call."
+    )
+    parser.add_argument(
         "--seed", 
         default=42, 
         type=int, 
@@ -84,7 +89,8 @@ if __name__ == "__main__":
     
     df_features = load_feature_data(
         dataset_path=input_file_path,
-        dataset_type=args.dataset_type
+        dataset_type=args.dataset_type,
+        remove_first_turn=args.remove_first_turn
     )
 
     if args.debug:
