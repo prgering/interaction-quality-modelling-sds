@@ -28,10 +28,14 @@ from src.utils import get_base_path, resolve_path, set_all_seeds
 
 CONFIG = {
     "null_vals": ["", "<NA>", "nan","NA", "null", "None", "\\N", " "],
+    # Note: Dropped by DataPreprocessor AFTER embedding generation
     "cols_to_drop": [
-        # Note: Dropped by DataPreprocessor AFTER embedding generation
-        "SemanticParse", "AudioFile", "HelpRequest?", 
-        "#HelpRequests", "(#)HelpRequest", "%HelpRequest", "Utterance"
+        # Columns with 0 variance
+        "HelpRequest?", "#HelpRequests", "(#)HelpRequest", "%HelpRequest",
+        # Redundant columns not needed for downstream tasks:
+        "SemanticParse", "AudioFile", "Utterance",
+        # Manual annotation columns:
+        "EmotionalState", "SystemDialogueAct", "UserDialogueAct"
     ],
     "string_cols": ["Prompt", "Utterance", "SemanticParse"],
     "embed_cols": ["Prompt", "Utterance"],
@@ -42,8 +46,7 @@ CONFIG = {
     ],
     "dummy_cols": [
         "ASRRecognitionStatus", "ExMo", "Modality", "Activity", 
-        "ActivityType", "RoleName", "LoopName", "SystemDialogueAct", 
-        "UserDialogueAct", "EmotionalState"
+        "ActivityType", "RoleName", "LoopName"
     ],
 }
 

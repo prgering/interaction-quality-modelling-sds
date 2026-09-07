@@ -112,18 +112,18 @@ class LSTMModel(nn.Module):
         return self.fc(out)
 
 class LstmManager:
-    def __init__(self, train_df, filecode_col, dv_col, dataset_type, device, base_path=None, test_df=None, auto_only=False):
+    def __init__(self, train_df, args=None, device=None, 
+                 filecode_col='CallID', dv_col='IQMedian', test_df=None):
         self.train_df, self.test_df = train_df, test_df
         self.filecode_col, self.dv_col = filecode_col, dv_col
-        self.dataset_type = dataset_type
-        self.device, self.base_path = device, base_path
-        self.auto_only = auto_only
+        self.dataset_type = args.dataset_type if args else None
+        self.device = device if device else torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.args = args
+
         self.num_classes = train_df[dv_col].nunique()
-        
         self.train_filecodes = train_df[filecode_col].unique()
         self.features = [c for c in train_df.columns if c not in [dv_col, filecode_col]]
-        if auto_only:
-            self.features = [c for c in self.features if not any(x in c for x in ["DialogueAct", "EmotionState"])]
+        
 
     def _setup_training(self, params):
         model = LSTMModel(len(self.features), params['hidden_sizes'], params['num_layers'], 
@@ -201,14 +201,33 @@ class LstmManager:
         
         return f1_score(y_true, y_pred, average='macro', zero_division=0), y_true, y_pred
 
-    def run_hyperparam_tuning(self, lstm_hyperparam_dict, pca_hyperparam_dict):
+    def run_hyperparam_tuning(self):
         "Standard Tuning with 10-fold CV"
 
+        if not self.args:
+            raise ValueError("Arguments ('args') were not provided to LstmManager. " \
+            "Hyperparameter tuning requires them.")
+
+        def to_list(val, default):
+            v = val if val is not None else default
+            return v if isinstance(v, list) else [v]
+
+        param_grid = {
+            "bidirectional": to_list(getattr(self.args, 'bidirectional', False), False),
+            "hidden_sizes": to_list(getattr(self.args, 'hidden_size', 128), 128),
+            "num_layers": to_list(getattr(self.args, 'num_layers', [1, 2, 3, 4]), [1, 2, 3, 4]),
+            "optimizers": to_list(getattr(self.args, 'optimizer', 'Adam'), 'Adam'),
+            "learning_rates": to_list(getattr(self.args, 'learning_rate', [0.001, 0.0005]), [0.001, 0.0005]),
+            "epochs": to_list(getattr(self.args, 'epochs', 250), 250),
+            "batch_size": to_list(getattr(self.args, 'batch_size', [5, 15, 25]), [5, 15, 25]),
+            "use_attention": to_list(getattr(self.args, 'use_attention', False), False)
+        }
+
         results_dict = defaultdict(dict)
-        lstm_keys = ["bidirectional", "hidden_sizes", "num_layers", "optimizers", "learning_rates", "epochs", "batch_size", "use_attention"]
-                
-        for params in product(*(lstm_hyperparam_dict[key] for key in lstm_keys)):
-            hyperparams = dict(zip(lstm_keys, params))
+        keys = list(param_grid.keys())
+
+        for params in product(*(param_grid[key] for key in keys)):
+            hyperparams = dict(zip(keys, params))
             
             # Determine the model type based on hyperparameters
             model_type = "bilstm" if hyperparams['bidirectional'] else "lstm"
@@ -288,8 +307,7 @@ class LstmManager:
                 all_predictions,
                 dataset_type=self.dataset_type,
                 model_type=model_type,
-                print_confusion_matrix=False,
-                auto_features_only=self.auto_only
+                print_confusion_matrix=False
             )
 
             macro_f1, macro_recall = test_results['macro avg']['f1-score'], test_results['macro avg']['recall']
@@ -380,8 +398,6 @@ class LstmManager:
             dataset_type=self.dataset_type,
             model_type=model_type,
             print_confusion_matrix=True,
-            base_path=self.base_path,
-            auto_features_only=self.auto_only
         )
 
         return test_results, test_actuals, test_predicts

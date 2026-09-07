@@ -10,13 +10,13 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.models.cli_args import add_feature_set_args, add_pca_args, add_lstm_args
-from src.models.data_loader import DataLoader
-from src.models.lstm_trainer import LstmPipeline
+from src.models.data_loader import load_processed_data
+from src.models.lstm_trainer import LstmManager
 from src.utils import set_all_seeds, get_base_path, resolve_path
 
 
 CONFIG = {
-
+    "debug_limit": 100,
 }
 
 def parse_args():
@@ -63,27 +63,19 @@ if __name__ == "__main__":
     for path in directories.values():
         path.mkdir(parents=True, exist_ok=True)
 
-    # Load the processed feature DataFrame
-    train_df = DataLoader.load_processed_data(input_dir = directories["input"], 
-                                            dataset_type = dataset_type, 
-                                            feature_split = "train", 
-                                            pca_n_comp_dict = pca_hyperparam_dict,
-                                            pretrained_model_dict = pretrained_model_dict
+    # Load preprocessed feature set for training and hyperparameter tuning
+    train_df = load_processed_data(
+        input_dir = directories["input"],
+        args = args
     )
 
-    # Run the experiments with the loaded DataFrame and specified parameters
-    trainer = LstmPipeline(train_df = train_df, 
-                filecode_column = filecode_col_name, 
-                dv_column = dv_col_name, 
-                dataset_type = dataset_type, 
-                lstm_hyperparam_dict = lstm_hyperparam_dict, 
-                pca_hyperparam_dict = pca_hyperparam_dict, 
-                device = device, 
-                base_path = base_path,
-                auto_features_only = auto_features_only
-    )
+    if args.debug:
+        train_df = train_df.head(CONFIG["debug_limit"])
 
-    results_dict = trainer.run_training_and_tuning()                 
+    # Initialize the LSTM manager and run hyperparameter tuning
+    trainer = LstmManager(train_df=train_df, args=args,device=device)
+
+    results_dict = trainer.run_hyperparam_tuning()                 
             
     for key, results in results_dict.items():
         recall_value = results["recall"]
