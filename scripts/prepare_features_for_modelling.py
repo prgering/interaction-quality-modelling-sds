@@ -19,7 +19,9 @@ CONFIG = {
 
 def parse_args():
     """Parses command line arguments for PCA preprocessing."""
-    parser = argparse.ArgumentParser(description="Hyperparameter settings for preprocessing with PCA.")
+    parser = argparse.ArgumentParser(
+        description="Hyperparameter settings for preprocessing with PCA."
+    )
 
     add_feature_set_args(parser)
     add_pca_args(parser)
@@ -107,17 +109,23 @@ if __name__ == "__main__":
         train_df = train_df, 
         test_df = eval_df, 
         pca_params_dict = pca_hyperparams)
+
+    def format_pca_val(val):
+        if val is None:
+            return ""
+        return str(int(round(float(val) * 10)))
+
+    sys_pca_str = format_pca_val(pca_hyperparams["n_comp_systemf_text"])
+    sp_txt_pca_str = format_pca_val(pca_hyperparams["n_comp_speechf_text"])
+    sp_wav_pca_str = format_pca_val(pca_hyperparams["n_comp_speechf_wav"])
     
     # Save processed DataFrames to CSV files
     for dataset_split, processed_df in dfs_dict.items():
         
         print(f"\nProcessed {dataset_split} DataFrame shape: {processed_df.shape}")
         
-        filename = f"{dataset_split}_{args.dataset_type}"
-        if args.dataset_type == "system":
-            filename += f"_sytxtpca{pca_hyperparams['n_comp_systemf_text']}_sptxtpca_spwpca"
-        elif args.dataset_type == "speech":
-            filename += f"_sytxtpca_sptxtpca{pca_hyperparams['n_comp_speechf_text']}_spwpca{pca_hyperparams['n_comp_speechf_wav']}"
+        filename = f"{dataset_split}_{args.dataset_type}_sytxtpca{sys_pca_str}_sptxtpca{sp_txt_pca_str}_spwpca{sp_wav_pca_str}"
+
         if args.debug:
             filename += "_debug"
         filename += ".csv"

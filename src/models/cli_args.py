@@ -19,9 +19,9 @@ def add_pca_args(parser: argparse.ArgumentParser):
     Adds PCA-related command-line arguments to a given parser object.
     """
 
-    parser.add_argument("--systemf_text_pca", type=float, default=0.5)
-    parser.add_argument("--speechf_text_pca", type=float, default=0.5)
-    parser.add_argument("--speechf_wav_pca", type=float, default=0.5)
+    parser.add_argument("--systemf_text_pca", type=float, default=0.0)
+    parser.add_argument("--speechf_text_pca", type=float, default=0.0)
+    parser.add_argument("--speechf_wav_pca", type=float, default=0.0)
 
 def add_svm_args(parser: argparse.ArgumentParser):
     """
@@ -40,69 +40,9 @@ def add_lstm_args(parser: argparse.ArgumentParser):
     parser.add_argument("--use_attention", action="store_true")
     parser.add_argument("--hidden_size", type=int, default=128)
     parser.add_argument("--num_layers", type=int, nargs='+', default=[1, 2, 3, 4])
+    parser.add_argument("--lr", type=float, nargs='+', default=[0.001, 0.0005])
+    parser.add_argument("--batch_size", type=int, nargs='+', default=[5, 15, 25])
 
-
-    # def parse_frozen_lstm_args():
-    #     """
-    #     Parses command line arguments for the frozen LSTM model.
-        
-    #     Returns:
-    #         tuple: A tuple containing the parsed arguments and dictionaries.
-    #                (dataset_type, lstm_hyperparam_dict, pca_hyperparam_dict)
-    #     """
-
-    #     parser = argparse.ArgumentParser(description="Train LSTM model with specific hyperparameter combinations.")
-        
-    #     # Add feature set arguments
-    #     ArgParser._add_feature_set_args(parser)
-    #     ArgParser._add_pca_args(parser)
-    #     ArgParser._add_lstm_args(parser)
-
-    #     parser.add_argument(
-    #         "--learning_rate",
-    #         type=float,
-    #         nargs='+',
-    #         default=[0.001, 0.0005],
-    #         help="Specify the learning rate for the optimizer (default: 0.001, 0.0005). You can provide multiple values, e.g., --learning_rate 0.001 0.0001"
-    #     )
-
-    #     parser.add_argument(
-    #         "--batch_size",
-    #         type=int,
-    #         nargs='+',
-    #         default=[5, 15, 25],
-    #         help="Specify the batch size for training (default: 5, 15, 25). You can provide multiple values, e.g., --batch_size 10 20"
-    #     )
-
-    #     args = parser.parse_args()
-
-    #     dataset_type = args.dataset_type
-    #     auto_features_only = args.auto_features_only
-
-    #     # Note: args.num_layers, args.learning_rate, and args.batch_size are now lists
-    #     lstm_hyperparam_dict = {
-    #         "hidden_sizes": [args.hidden_size],
-    #         "num_layers": args.num_layers,
-    #         "optimizers": ["Adam"],
-    #         "learning_rates": args.learning_rate,
-    #         "bidirectional": [args.bidirectional],
-    #         "batch_size": args.batch_size,
-    #         "use_attention": [args.use_attention],
-    #         "epochs": [250]
-    #     }
-        
-    #     pca_hyperparam_dict = {
-    #         "n_components_systemf_text": args.systemf_text_pca,
-    #         "n_components_speechf_text": args.speechf_text_pca,
-    #         "n_components_speechf_speech": args.speechf_speech_pca
-    #     }
-
-    #     pretrained_model_dict = {
-    #         "pretrained_text_model": args.pretrained_text_model,
-    #         "pretrained_speech_model": args.pretrained_speech_model
-    #     }
-
-    #     return dataset_type, lstm_hyperparam_dict, pca_hyperparam_dict, auto_features_only, pretrained_model_dict
 
     # @staticmethod
     # def parse_fine_tuned_lstm_args():
