@@ -128,6 +128,7 @@ class LstmManager:
         self.num_classes = len(valid_targets)
         self.all_classes = np.array(valid_targets)
 
+        self.train_filecodes = train_df[filecode_col].unique()
         self.features = [c for c in train_df.columns if c not in [dv_col, filecode_col]]
         
     def _setup_training(self, params, y_fold=None):
