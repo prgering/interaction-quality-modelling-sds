@@ -40,8 +40,6 @@ def load_processed_data(input_dir, args, feature_split="train"):
 
     filename = f"{feature_split}_{dataset_type}_sytxtpca{system_pca}_sptxtpca{speech_text_pca}_spwpca{speech_wav_pca}"
 
-    if getattr(args, 'debug', False):
-        filename += "_debug"
     filename += ".csv"
 
     file_path = input_dir / filename
