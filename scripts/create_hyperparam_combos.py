@@ -15,7 +15,6 @@ EXPERIMENT_GRIDS = {
         "speechf_wav_pca": [0.5, 0.6, 0.7, 0.8],
     },
     "system_svm": {
-        "auto_features_only": [False, True],
         "systemf_text_pca": [0.5, 0.6, 0.7, 0.8],
         "text_embedding_model": ["sbert", "roberta", "todbert"],
     },
@@ -29,7 +28,6 @@ EXPERIMENT_GRIDS = {
         "use_attention": [False, True],
         "bidirectional": [False, True],
         "hidden_size": [128, 256, 384],
-        "auto_features_only": [False, True],
         "systemf_text_pca": [0.5, 0.6, 0.7, 0.8],
         "text_embedding_model": ["sbert", "roberta", "todbert"],
     },

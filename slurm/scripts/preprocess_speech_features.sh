@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=preprocess_speech_features
-#SBATCH --time=90:00:00
+#SBATCH --time=10:00:00
 #SBATCH --nodes=1
 #SBATCH --mem=50G
 #SBATCH --cpus-per-task=16
