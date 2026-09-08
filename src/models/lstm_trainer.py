@@ -135,6 +135,9 @@ class LstmManager:
         self.num_classes = len(valid_targets)
         self.all_classes = np.array(valid_targets)
 
+        nan_cols = train_df.columns[train_df.isna().any()].tolist()
+        print(f"Columns with NaN values: {nan_cols}")
+
         self.train_filecodes = train_df[filecode_col].unique()
         self.features = [c for c in train_df.columns if c not in [dv_col, filecode_col]]
         
