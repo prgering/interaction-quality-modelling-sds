@@ -30,6 +30,11 @@ class SequenceDataset(Dataset):
         grouped = df.groupby(filecode_col)
 
         self.features = [torch.tensor(g[feature_cols].values, dtype=torch.float32) for _, g in grouped]
+        # Print min/max feature values across the dataset
+        all_feats = torch.cat(self.features, dim=0)
+        print(f"Feature Min: {all_feats.min().item():.4f} | Feature Max: {all_feats.max().item():.4f}")
+        print(f"Feature Mean: {all_feats.mean().item():.4f} | Feature Std: {all_feats.std().item():.4f}")
+
         self.targets = [torch.tensor(g[target_col].values, dtype=torch.long) for _, g in grouped]
 
     def __len__(self): return len(self.features)
