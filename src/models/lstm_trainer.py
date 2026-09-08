@@ -78,7 +78,7 @@ class AdditiveSelfAttention(nn.Module):
     def forward(self, H, mask=None):
         batch_size, seq_len, hidden_size = H.size()
 
-        # Project each hidden state into the attention space and compute pairwise scores
+        # Project features into attention space
         proj_t = self.W_t(H).unsqueeze(2)
         proj_t_prime = self.W_t_prime(H).unsqueeze(1)
         
@@ -87,8 +87,10 @@ class AdditiveSelfAttention(nn.Module):
         
         # If a mask is provided, set padding positions to -infinity 
         if mask is not None:
+            # Transpose mask from (B, T, 1) to (B, 1, T) to mask padded keys
+            key_mask = mask.transpose(1, 2)
             fill_val = -1e4 if e.dtype == torch.float16 else -1e9
-            e = e.masked_fill(mask.expand(-1, -1, seq_len) == 0, fill_val)
+            e = e.masked_fill(key_mask == 0, fill_val)
 
         # Convert raw scores to probabilities that sum to 1.
         alpha = F.softmax(e, dim=-1)
