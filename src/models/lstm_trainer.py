@@ -1,20 +1,26 @@
+import sys
+import numpy as np
+import gc
+import time
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+
+from pathlib import Path
+from collections import defaultdict
+from itertools import product
 from torch.utils.data import Dataset, DataLoader
 from torch.nn.utils.rnn import pad_sequence
 from sklearn.model_selection import GroupKFold, train_test_split
 from sklearn.metrics import f1_score
 from sklearn.utils.class_weight import compute_class_weight
-import pandas as pd
-import numpy as np
-from collections import defaultdict
-from itertools import product
-import gc
-import time
 
-from ..utils import calc_metrics, set_rng_state, count_parameters
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.utils import calc_metrics
 
 class SequenceDataset(Dataset):
     """
@@ -72,20 +78,17 @@ class AdditiveSelfAttention(nn.Module):
     def forward(self, H, mask=None):
         batch_size, seq_len, hidden_size = H.size()
 
-        # Create a pairwise grid by expanding H. 
-        # H_t stacks words vertically; H_t_prime stacks them horizontally.
-        H_t = H.unsqueeze(2).repeat(1, 1, seq_len, 1)
-        H_t_prime = H.unsqueeze(1).repeat(1, seq_len, 1, 1)
-
-        # Core Additive Equation: e = v * tanh(W_t*H_i + W_t_prime*H_j + b)
-        # This calculates the 'energy' or raw importance score for every pair (i, j).
-        g = torch.tanh(self.W_t(H_t) + self.W_t_prime(H_t_prime) + self.b)
+        # Project each hidden state into the attention space and compute pairwise scores
+        proj_t = self.W_t(H).unsqueeze(2)
+        proj_t_prime = self.W_t_prime(H).unsqueeze(1)
+        
+        g = torch.tanh(proj_t + proj_t_prime + self.b)
         e = self.W_a(g).squeeze(-1) + self.b_a
         
         # If a mask is provided, set padding positions to -infinity 
-        # so they result in 0 attention after the softmax.
         if mask is not None:
-            e = e.masked_fill(mask.expand(-1, -1, seq_len) == 0, -1e9)
+            fill_val = -1e4 if e.dtype == torch.float16 else -1e9
+            e = e.masked_fill(mask.expand(-1, -1, seq_len) == 0, fill_val)
 
         # Convert raw scores to probabilities that sum to 1.
         alpha = F.softmax(e, dim=-1)
@@ -100,7 +103,8 @@ class LSTMModel(nn.Module):
         super(LSTMModel, self).__init__()
         self.use_attention = use_attention
         self.num_dir = 2 if bidirectional else 1
-        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, bidirectional=bidirectional)
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, 
+                            bidirectional=bidirectional)
         concat_size = hidden_size * self.num_dir
         self.attention = AdditiveSelfAttention(concat_size) if use_attention else None
         self.fc = nn.Linear(hidden_size * self.num_dir, num_classes)
@@ -124,12 +128,21 @@ class LstmManager:
         self.train_filecodes = train_df[filecode_col].unique()
         self.features = [c for c in train_df.columns if c not in [dv_col, filecode_col]]
         
+    def _setup_training(self, params, y_fold=None):
+        model = LSTMModel(
+            len(self.features), params['hidden_sizes'], 
+            params['num_layers'], self.num_classes, 
+            params['bidirectional'], params['use_attention']
+        ).to(self.device)
 
-    def _setup_training(self, params):
-        model = LSTMModel(len(self.features), params['hidden_sizes'], params['num_layers'], 
-                          self.num_classes, params['bidirectional'], params['use_attention']).to(self.device)
-        weights = compute_class_weight('balanced', classes=np.arange(self.num_classes), y=self.train_df[self.dv_col])
-        criterion = nn.CrossEntropyLoss(weight=torch.tensor(weights, dtype=torch.float32).to(self.device), ignore_index=-1)
+        # Filter out ignored indices (-1) for class weight calculation
+        valid_y = y_fold[y_fold != -1]
+        all_classes = np.arange(self.num_classes)
+
+        class_weights = calculate_class_weights(valid_y, all_classes, self.device)
+
+        criterion = nn.CrossEntropyLoss(weight=class_weights, ignore_index=-1)
+
         optimizer = optim.Adam(model.parameters(), lr=params['learning_rates'])
         return model, criterion, optimizer
 
@@ -216,11 +229,13 @@ class LstmManager:
             "bidirectional": to_list(getattr(self.args, 'bidirectional', False), False),
             "hidden_sizes": to_list(getattr(self.args, 'hidden_size', 128), 128),
             "num_layers": to_list(getattr(self.args, 'num_layers', [1, 2, 3, 4]), [1, 2, 3, 4]),
-            "optimizers": to_list(getattr(self.args, 'optimizer', 'Adam'), 'Adam'),
             "learning_rates": to_list(getattr(self.args, 'learning_rate', [0.001, 0.0005]), [0.001, 0.0005]),
             "epochs": to_list(getattr(self.args, 'epochs', 250), 250),
             "batch_size": to_list(getattr(self.args, 'batch_size', [5, 15, 25]), [5, 15, 25]),
-            "use_attention": to_list(getattr(self.args, 'use_attention', False), False)
+            "use_attention": to_list(getattr(self.args, 'use_attention', False), False),
+            "n_comp_systemf": to_list(getattr(self.args, 'systemf_text_pca', None), None),
+            "n_comp_speechf_text": to_list(getattr(self.args, 'speechf_text_pca', None), None),
+            "n_comp_speechf_wav": to_list(getattr(self.args, 'speechf_wav_pca', None), None)
         }
 
         results_dict = defaultdict(dict)
@@ -233,6 +248,9 @@ class LstmManager:
             model_type = "bilstm" if hyperparams['bidirectional'] else "lstm"
             if hyperparams['use_attention']:
                 model_type += "_attention"
+
+            # Adjusted evaluation batch size to prevent CUDA OOM on smaller GPUs.
+            eval_batch_size = hyperparams['batch_size'] * 2
             
             print(
                 "\n\n-------------------------------------------------\n"
@@ -274,16 +292,19 @@ class LstmManager:
                 
                 val_loader = DataLoader(
                     val_dataset, 
-                    batch_size=len(val_dataset), 
+                    batch_size=eval_batch_size, 
                     collate_fn=collate_fn, 
                 )
                 test_loader = DataLoader(
                     test_dataset, 
-                    batch_size=len(test_dataset), 
+                    batch_size=eval_batch_size, 
                     collate_fn=collate_fn, 
                 )
         
-                model, criterion, optimizer = self._setup_training(hyperparams)
+                model, criterion, optimizer = self._setup_training(
+                    hyperparams,
+                    y_fold=train_split[self.dv_col].values
+                )
                 
                 model = self.train_model(
                     model, 
@@ -315,9 +336,6 @@ class LstmManager:
             key_params = hyperparams.copy()
             key_params['model_type'] = model_type
                 
-            for pca_key in ['n_components_agent_sbert', 'n_components_speech_sbert', 'n_components_wav2vec']:
-                key_params[pca_key] = self.pca_hyperparam_dict.get(pca_key, 'N/A')
-                
             key = tuple(sorted(key_params.items()))
             results_dict[key]["params"] = hyperparams
             results_dict[key]["recall"] = macro_recall
@@ -325,79 +343,80 @@ class LstmManager:
 
         return results_dict
 
-    def run_final_evaluation(self, lstm_hyperparam_dict):
-        """Train on whole train set, evaluate on test set."""
 
-        if self.test_df is None:
-            raise ValueError("Test DataFrame must be provided for evaluation.")
+    # def run_final_evaluation(self, lstm_hyperparam_dict):
+    #     """Train on whole train set, evaluate on test set."""
 
-        for key, values in lstm_hyperparam_dict.items():
-            if isinstance(values, list):
-                lstm_hyperparam_dict[key] = values[0]
-            else:
-                lstm_hyperparam_dict[key] = values
+    #     if self.test_df is None:
+    #         raise ValueError("Test DataFrame must be provided for evaluation.")
 
-        model_type = "bilstm" if lstm_hyperparam_dict['bidirectional'] else "lstm"
-        if lstm_hyperparam_dict['use_attention']:
-            model_type += "_attention"
+    #     for key, values in lstm_hyperparam_dict.items():
+    #         if isinstance(values, list):
+    #             lstm_hyperparam_dict[key] = values[0]
+    #         else:
+    #             lstm_hyperparam_dict[key] = values
 
-        train_codes, val_codes = train_test_split(
-            self.train_filecodes, test_size=0.2, random_state=42
-        )
+    #     model_type = "bilstm" if lstm_hyperparam_dict['bidirectional'] else "lstm"
+    #     if lstm_hyperparam_dict['use_attention']:
+    #         model_type += "_attention"
+
+    #     train_codes, val_codes = train_test_split(
+    #         self.train_filecodes, test_size=0.2, random_state=42
+    #     )
         
-        train_split = self.train_df[self.train_df[self.filecode_col].isin(train_codes)]
-        val_split = self.train_df[self.train_df[self.filecode_col].isin(val_codes)]
+    #     train_split = self.train_df[self.train_df[self.filecode_col].isin(train_codes)]
+    #     val_split = self.train_df[self.train_df[self.filecode_col].isin(val_codes)]
 
-        # 2. Prepare DataLoaders for both training and validation sets
-        train_dataset = SequenceDataset(train_split, self.filecode_col, self.features, self.dv_col)
-        val_dataset = SequenceDataset(val_split, self.filecode_col, self.features, self.dv_col)
-        test_dataset = SequenceDataset(self.test_df, self.filecode_col, self.features, self.dv_col)
+    #     # 2. Prepare DataLoaders for both training and validation sets
+    #     train_dataset = SequenceDataset(train_split, self.filecode_col, self.features, self.dv_col)
+    #     val_dataset = SequenceDataset(val_split, self.filecode_col, self.features, self.dv_col)
+    #     test_dataset = SequenceDataset(self.test_df, self.filecode_col, self.features, self.dv_col)
 
-        train_loader = DataLoader(
-            train_dataset, 
-            batch_size=lstm_hyperparam_dict["batch_size"], 
-            shuffle=True, 
-            collate_fn=collate_fn, 
-        )
+    #     train_loader = DataLoader(
+    #         train_dataset, 
+    #         batch_size=lstm_hyperparam_dict["batch_size"], 
+    #         shuffle=True, 
+    #         collate_fn=collate_fn, 
+    #     )
                 
-        val_loader = DataLoader(
-            val_dataset, 
-            batch_size=len(val_dataset), 
-            collate_fn=collate_fn, 
-        )
+    #     val_loader = DataLoader(
+    #         val_dataset, 
+    #         batch_size=len(val_dataset), 
+    #         collate_fn=collate_fn, 
+    #     )
 
-        test_loader = DataLoader(
-            test_dataset, 
-            batch_size=len(test_dataset), 
-            collate_fn=collate_fn, 
-        )
+    #     test_loader = DataLoader(
+    #         test_dataset, 
+    #         batch_size=len(test_dataset), 
+    #         collate_fn=collate_fn, 
+    #     )
         
-        model, criterion, optimizer = self._setup_training(lstm_hyperparam_dict)
+    #     model, criterion, optimizer = self._setup_training(lstm_hyperparam_dict)
 
-        total_params = count_parameters(model)
-        print(f"Total trainable parameters in the model: {total_params}")
+    #     total_params = count_parameters(model)
+    #     print(f"Total trainable parameters in the model: {total_params}")
 
-        model = self.train_model(
-            model, 
-            criterion, 
-            optimizer, 
-            lstm_hyperparam_dict, 
-            train_loader, 
-            val_loader=val_loader
-        )
+    #     model = self.train_model(
+    #         model, 
+    #         criterion, 
+    #         optimizer, 
+    #         lstm_hyperparam_dict, 
+    #         train_loader, 
+    #         val_loader=val_loader
+    #     )
 
-        _, test_actuals, test_predicts = self.evaluate_on_loader(
-            model, 
-            test_loader,
-            verbose=True
-        )
+    #     _, test_actuals, test_predicts = self.evaluate_on_loader(
+    #         model, 
+    #         test_loader,
+    #         verbose=True
+    #     )
 
-        test_results = calc_metrics(
-            test_actuals, 
-            test_predicts,
-            dataset_type=self.dataset_type,
-            model_type=model_type,
-            print_confusion_matrix=True,
-        )
+    #     test_results = calc_metrics(
+    #         test_actuals, 
+    #         test_predicts,
+    #         dataset_type=self.dataset_type,
+    #         model_type=model_type,
+    #         print_confusion_matrix=True,
+    #     )
 
-        return test_results, test_actuals, test_predicts
+    #     return test_results, test_actuals, test_predicts

@@ -43,7 +43,6 @@ def add_lstm_args(parser: argparse.ArgumentParser):
     parser.add_argument("--lr", type=float, nargs='+', default=[0.001, 0.0005])
     parser.add_argument("--batch_size", type=int, nargs='+', default=[5, 15, 25])
     parser.add_argument("--epochs", type=int, default=250)
-    parser.add_argument("--optimizer", type=str, default="Adam")
 
     # @staticmethod
     # def parse_fine_tuned_lstm_args():

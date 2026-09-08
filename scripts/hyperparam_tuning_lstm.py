@@ -2,7 +2,7 @@
 import sys
 import argparse
 from pathlib import Path
-
+import pandas as pd
 import torch
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -16,7 +16,7 @@ from src.utils import set_all_seeds, get_base_path, resolve_path
 
 
 CONFIG = {
-    "debug_limit": 100,
+    "debug_limit": 500,
 }
 
 def parse_args():
@@ -33,6 +33,11 @@ def parse_args():
         "--input-dir",
         default="data/processed/preprocessed_features",
         help="Directory containing the extracted features."
+    )
+    parser.add_argument(
+        "--output-dir",
+        default="experiments/hyperparam_tuning_results",
+        help="Directory to save the hyperparameter tuning results."
     )
     parser.add_argument(
         "--seed", 
@@ -58,10 +63,13 @@ if __name__ == "__main__":
 
     directories = {
         "input": resolve_path(base_path, args.input_dir),
+        "output": resolve_path(base_path, args.output_dir),
     }
 
     for path in directories.values():
         path.mkdir(parents=True, exist_ok=True)
+
+    output_file_path = directories["output"] / "hyperparam_tuning_results.csv"
 
     # Load preprocessed feature set for training and hyperparameter tuning
     train_df = load_processed_data(
@@ -75,12 +83,18 @@ if __name__ == "__main__":
     # Initialize the LSTM manager and run hyperparameter tuning
     trainer = LstmManager(train_df=train_df, args=args,device=device)
 
-    results_dict = trainer.run_hyperparam_tuning()                 
-            
+    results_dict = trainer.run_hyperparam_tuning()   
+
+    records = []
+
     for key, results in results_dict.items():
-        recall_value = results["recall"]
-        f1_value = results["f1"]
-        print(f"Hyperparameters: {key}, Macro Average Recall: {recall_value}, Macro Average F1: {f1_value}")
+        row = {
+            **results["params"],
+            "macro_recall": results["recall"],
+            "macro_f1": results["f1"]
+        }
+        records.append(row)
 
-
-        
+    df = pd.DataFrame(records)
+    df.sort_values(by="macro_f1", ascending=False, inplace=True)
+    df.to_csv(output_file_path, index=False)
