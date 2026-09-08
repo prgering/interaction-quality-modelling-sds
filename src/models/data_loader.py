@@ -11,6 +11,8 @@ def format_pca_val(val):
 def filter_embed_columns(df, args):
     """Filters DataFrame columns to only include specified embedding columns."""
 
+    non_feature_columns = ['CallID', 'IQMedian']
+
     text_model = args.pretrained_text_model
     speech_model = args.pretrained_speech_model
 
@@ -20,7 +22,7 @@ def filter_embed_columns(df, args):
     columns_to_drop = []
 
     for col in df.columns:
-        if 'non_pca' in col.lower():
+        if 'non_pca' in col.lower() or col in non_feature_columns:
             continue  # Skip non-embedding columns
         if text_tag not in col.lower() and speech_tag not in col.lower():
             columns_to_drop.append(col)
