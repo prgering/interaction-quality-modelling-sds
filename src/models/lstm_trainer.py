@@ -124,8 +124,10 @@ class LstmManager:
         self.device = device if device else torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.args = args
 
-        self.num_classes = train_df[dv_col].nunique()
-        self.train_filecodes = train_df[filecode_col].unique()
+        valid_targets = sorted([c for c in train_df[dv_col].unique() if c >= 0])
+        self.num_classes = len(valid_targets)
+        self.all_classes = np.array(valid_targets)
+
         self.features = [c for c in train_df.columns if c not in [dv_col, filecode_col]]
         
     def _setup_training(self, params, y_fold=None):
@@ -135,11 +137,10 @@ class LstmManager:
             params['bidirectional'], params['use_attention']
         ).to(self.device)
 
-        # Filter out ignored indices (-1) for class weight calculation
-        valid_y = y_fold[y_fold != -1]
-        all_classes = np.arange(self.num_classes)
+        # Keep only valid target values for class weight calculation
+        valid_y = y_fold[y_fold >= 0]
 
-        class_weights = calculate_class_weights(valid_y, all_classes, self.device)
+        class_weights = calculate_class_weights(valid_y, self.all_classes, self.device)
 
         criterion = nn.CrossEntropyLoss(weight=class_weights, ignore_index=-1)
 
