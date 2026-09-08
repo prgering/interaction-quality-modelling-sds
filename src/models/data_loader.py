@@ -20,7 +20,7 @@ def filter_embed_columns(df, args):
     columns_to_drop = []
 
     for col in df.columns:
-        if 'emb' not in col.lower() and 'dim' not in col.lower():
+        if 'non_pca' in col.lower():
             continue  # Skip non-embedding columns
         if text_tag not in col.lower() and speech_tag not in col.lower():
             columns_to_drop.append(col)
