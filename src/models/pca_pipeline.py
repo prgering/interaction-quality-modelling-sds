@@ -23,8 +23,8 @@ def load_feature_data(dataset_path, dataset_type, remove_first_turn = False):
         df['ExchangeNum'] = df.groupby('CallID').cumcount() + 1
         df = df[df['ExchangeNum'] > 2].copy()
 
-        df.drop(columns=['ExchangeNum'], inplace=True)
-        
+    df.drop(columns=['ExchangeNum', 'IQRater1', 'IQRater2', 'IQRater3'], inplace=True, errors='ignore')
+
     # Optimize the DataFrame memory usage
     print(f"Size of {dataset_type} df: {get_df_size(df):.4f} GB", flush = True)
     print(f"Optimizing {dataset_type} df...", flush = True)
