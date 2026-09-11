@@ -143,7 +143,7 @@ sbatch slurm/scripts/hyperparam_tune_system_lstm.sh
 ```
 
 ## Running the Fine-Tuned Pipeline
-Complete Steps A -- E from the Frozen Pipeline Instructions. 
+Complete Steps A&mdash;E from the Frozen Pipeline Instructions. 
 
 For Step D (Speech Feature Extraction), only extract the OpenSMILE features by specifying the `static_speech` mode.
 
