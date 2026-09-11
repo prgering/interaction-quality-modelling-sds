@@ -32,7 +32,7 @@ You must download the LEGO corpus from the [University of Bamberg Resources Webs
 
 Once you have unzipped the downloaded folder, place it in the 'data/raw/' directory of this repository.
 
-## Running the Pipeline
+## Running the Static Feature Pipeline
 
 ### Step A: System Log Preprocessing
 
@@ -142,6 +142,16 @@ sbatch slurm/scripts/hyperparam_tune_speech_lstm.sh
 sbatch slurm/scripts/hyperparam_tune_system_lstm.sh
 ```
 
+## Running the Fine-Tuned Pipeline
+Complete Steps A -- E from the Frozen Pipeline Instructions. 
+
+For Step D (Speech Feature Extraction), only extract the OpenSMILE features by specifying the `static_speech` mode.
+
+### Step F:
+
+### Step G:
+
+```
 
 ## License
 
