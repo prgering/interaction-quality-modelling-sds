@@ -130,7 +130,7 @@ if __name__ == "__main__":
     # Inspect a sample of the processed data
 
     train_df = dfs_dict["train"]
-    for col in train_df.columns[:50]:  # Limit to first 50 columns for inspection
+    for col in train_df.columns[-50:]:  # Limit to last 50 columns for inspection
         print(f"\nColumn: {col}")
         print(train_df[col].unique())
 
