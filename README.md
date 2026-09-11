@@ -92,13 +92,56 @@ sbatch slurm/scripts/extract_speech_features.sh speech
 ### Step E: Filter System Log Features
 
 Excluding dialogues from the system-derived features if there are missing audio files or dialogues with no user or agent speech. This step can only be run once validated user and agent transcripts have been produced.
+
 ```bash
 python scripts/filter_system_features.py
 ```
 
 ### Step F: Prepare Feature Sets for Machine Learning
 
+Prepares features for modelling by loading, preprocessing, and splitting the data. PCA and scaling are applied to embedding features, whereas non-embedding features are
+only scaled.
+
+```bash
+python scripts/prepare_features_for_modelling.py
+```
+
 ### Step G: Hyperparameter Tuning with LSTM
+
+Trains interaction quality classifier via 10-fold grouped cross-validation and hyperparameter tuning for a specified feature set.
+
+**1. Local Execution (CPU / Fast Mode)**
+
+Debugging mode: running hyperparameter tuning on a small data subset.
+
+* a. Speech Features
+
+```bash
+python -m scripts/hyperparam_tuning_lstm speech --speechf_text_pca 0.5  --speechf_wav_pca 0.5 --debug
+```
+
+* b. System Features
+
+```bash
+python -m scripts/hyperparam_tuning_lstm system --systemf_text_pca 0.5 --debug
+```
+
+**2. HPC Execution via Slurm**
+
+Runs Slurm array jobs driven by a configuration text file. Generate parameter combinations using `scripts/create_hyperparam_combos.py`, and ensure the `#SBATCH --array` size matches the total number of lines in the generated text file.
+
+* a. Speech features
+
+```bash
+sbatch slurm/scripts/hyperparam_tune_speech_lstm.sh
+```
+
+* b. System features
+
+```bash
+sbatch slurm/scripts/hyperparam_tune_system_lstm.sh
+```
+
 
 ## License
 

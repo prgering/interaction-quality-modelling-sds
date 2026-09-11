@@ -1,3 +1,20 @@
+"""
+Trains interaction quality classifier via 10-fold grouped cross-validation and hyperparameter
+tuning. Hyperparameters are tuned using a grid search approach. The best model is selected based
+on the macro F1 score.
+
+The following hyperparameters are tuned:
+    - Hidden size
+    - Number of layers
+    - Bidirectionality
+    - Use of attention mechanism
+    - Batch size
+    - Learning rate
+    - PCA explained variance ratio
+
+The results are saved to a CSV file in the specified output directory.
+"""
+
 #imports
 import sys
 import argparse

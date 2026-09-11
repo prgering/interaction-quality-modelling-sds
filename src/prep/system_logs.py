@@ -326,10 +326,19 @@ class DataPreprocessor:
         self.extract_text_embeddings()
 
         # Drop columns unnecessary for classification
-        drop_cols = (
-            self.config.get("cols_to_drop", [])
-        )
-        self.df = self.df.drop(drop_cols, axis=1)
+        drop_cols = self.config.get("cols_to_drop", [])
+        drop_keywords = self.config.get("keywords_to_drop", [])
+
+        exact_drops_lower = {c.lower() for c in drop_cols}
+        keywords_lower = [kw.lower() for kw in drop_keywords]
+
+        cols_to_remove = [
+            col for col in self.df.columns
+            if col.lower() in exact_drops_lower 
+            or any(kw in col.lower() for kw in keywords_lower)
+        ]
+
+        self.df = self.df.drop(columns=cols_to_remove, errors='ignore')
 
         # Exclude window-level and dialogue-level features
         self.df = self.df.filter(regex=r'^(?!.*Mean)[^#%]+$')

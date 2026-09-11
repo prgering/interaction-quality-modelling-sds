@@ -118,6 +118,11 @@ if __name__ == "__main__":
     
     filtered_df, excluded_files = excluder.run_pipeline()
 
+    # ------------ Inspect Filtered Data ------------
+    for col in filtered_df.columns[:50]:  # Limit to first 50 columns for inspection
+        print(f"\nColumn: {col}")
+        print(filtered_df[col].unique())
+
     # ------------ Save Filtered Data ------------
 
     filtered_df.to_csv(

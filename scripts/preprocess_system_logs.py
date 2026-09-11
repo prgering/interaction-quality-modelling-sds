@@ -34,8 +34,10 @@ CONFIG = {
         "HelpRequest?", "#HelpRequests", "(#)HelpRequest", "%HelpRequest",
         # Redundant columns not needed for downstream tasks:
         "SemanticParse", "AudioFile", "Utterance",
-        # Manual annotation columns:
-        "EmotionalState", "SystemDialogueAct", "UserDialogueAct"
+    ],
+    "keywords_to_drop": [
+        # Manual annotation columns
+        "SystemDialogueAct", "UserDialogueAct", "EmotionalState"
     ],
     "string_cols": ["Prompt", "Utterance", "SemanticParse"],
     "embed_cols": ["Prompt", "Utterance"],

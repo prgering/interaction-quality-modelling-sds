@@ -1,3 +1,11 @@
+"""
+Prepares features for modelling by loading, preprocessing, and splitting the data.
+
+PCA and scaling are applied to embedding features, whereas non-embedding features are
+only scaled. The processed features are saved to separate CSV files depending on the
+dataset split and PCA n-components value.
+"""
+
 #imports
 import sys
 import argparse
@@ -118,6 +126,14 @@ if __name__ == "__main__":
     sys_pca_str = format_pca_val(pca_hyperparams["n_comp_systemf_text"])
     sp_txt_pca_str = format_pca_val(pca_hyperparams["n_comp_speechf_text"])
     sp_wav_pca_str = format_pca_val(pca_hyperparams["n_comp_speechf_wav"])
+
+    # Inspect a sample of the processed data
+
+    train_df = dfs_dict["train"]
+    for col in train_df.columns[:50]:  # Limit to first 50 columns for inspection
+        print(f"\nColumn: {col}")
+        print(train_df[col].unique())
+
     
     # Save processed DataFrames to CSV files
     for dataset_split, processed_df in dfs_dict.items():
