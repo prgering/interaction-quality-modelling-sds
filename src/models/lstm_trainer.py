@@ -247,7 +247,9 @@ class LstmManager:
             "use_attention": to_list(getattr(self.args, 'use_attention', False), False),
             "n_comp_systemf": to_list(getattr(self.args, 'systemf_text_pca', None), None),
             "n_comp_speechf_text": to_list(getattr(self.args, 'speechf_text_pca', None), None),
-            "n_comp_speechf_wav": to_list(getattr(self.args, 'speechf_wav_pca', None), None)
+            "n_comp_speechf_wav": to_list(getattr(self.args, 'speechf_wav_pca', None), None),
+            "pretrained_text_model": to_list(getattr(self.args, 'pretrained_text_model', None), None),
+            "pretrained_speech_model": to_list(getattr(self.args, 'pretrained_speech_model', None), None)
         }
 
         results_dict = defaultdict(dict)
@@ -347,9 +349,10 @@ class LstmManager:
                                         
             key_params = hyperparams.copy()
             key_params['model_type'] = model_type
+            key_params['dataset_type'] = self.dataset_type
                 
             key = tuple(sorted(key_params.items()))
-            results_dict[key]["params"] = hyperparams
+            results_dict[key]["params"] = key_params
             results_dict[key]["recall"] = macro_recall
             results_dict[key]["f1"] = macro_f1
 

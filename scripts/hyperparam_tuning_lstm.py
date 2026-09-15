@@ -21,6 +21,7 @@ import argparse
 from pathlib import Path
 import pandas as pd
 import torch
+import os
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -86,7 +87,8 @@ if __name__ == "__main__":
     for path in directories.values():
         path.mkdir(parents=True, exist_ok=True)
 
-    output_file_path = directories["output"] / "hyperparam_tuning_results.csv"
+    task_id = os.environ.get("SLURM_ARRAY_TASK_ID")
+    output_file_path = directories["output"] / f"tuning_results_{task_id}.csv"
 
     # Load preprocessed feature set for training and hyperparameter tuning
     train_df = load_processed_data(

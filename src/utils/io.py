@@ -66,6 +66,9 @@ def get_filepaths(directory_dict, folder_to_process = None):
     if folder_to_process in ("inaccurate_vad", "accurate_vad"):
         return list_files(target_dir, pattern="*.rttm")
 
+    if folder_to_process == "hyperparam_tuning_results":
+        return list_files(target_dir, pattern="*.csv")
+
     handlers = {
         "audio": lambda d: _get_audio_files(d, folder_type="audio"),
         "normalised_audio": lambda d: _get_audio_files(d, folder_type="normalised_audio"),
