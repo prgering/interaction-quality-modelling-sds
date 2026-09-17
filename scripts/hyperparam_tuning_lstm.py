@@ -99,6 +99,15 @@ if __name__ == "__main__":
     if args.debug:
         train_df = train_df.head(CONFIG["debug_limit"])
 
+    print(f"--- GPU DEBUG INFO ---")
+    print(f"CUDA_VISIBLE_DEVICES: {os.environ.get('CUDA_VISIBLE_DEVICES')}")
+    print(f"Is CUDA available: {torch.cuda.is_available()}")
+    print(f"Device count: {torch.cuda.device_count()}")
+    if torch.cuda.is_available():
+        print(f"Current device index: {torch.cuda.current_device()}")
+        print(f"Device name: {torch.cuda.get_device_name(0)}")
+    print(f"----------------------")
+
     # Initialize the LSTM manager and run hyperparameter tuning
     trainer = LstmManager(train_df=train_df, args=args,device=device)
 
