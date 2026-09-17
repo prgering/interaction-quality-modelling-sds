@@ -240,3 +240,6 @@ data/processed/*
 
 # Ignore logs folder
 logs/
+
+# Ignore finetuning code for now
+src/fine_tuning/**

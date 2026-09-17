@@ -5,10 +5,6 @@ PROJECT_ROOT="${SLURM_SUBMIT_DIR:-$PWD}"
 export LEGO_BASE_PATH="$PROJECT_ROOT"
 cd "$PROJECT_ROOT"
 
-# --- Module Setup ---
-module load CUDA/12.4.0 
-module load cuDNN/9.1.1.17-CUDA-12.4.0
-
 # --- Conda Environment Setup ---
 if [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
     source "$HOME/miniconda3/etc/profile.d/conda.sh"
