@@ -1,15 +1,14 @@
 #!/bin/bash
 #SBATCH --job-name=speech_lstm_tuning
 #SBATCH --time=20:00:00
-#SBATCH --nodes=1
-#SBATCH --mem=90G
-#SBATCH --gpus-per-node=1
-#SBATCH --cpus-per-task=4
-#
-# ---USER REQUIRED---
 #SBATCH --partition=gpu
 #SBATCH --qos=gpu
-#SBATCH --gres=gpu:h100:1
+#SBATCH --nodes=1
+#SBATCH --mem=90G
+#SBATCH --gres=gpu:1
+#SBATCH --cpus-per-task=1
+#
+# ---USER REQUIRED---
 #SBATCH --output=logs/speech_lstm_tuning/%x_%A_%a.txt
 
 # --- Source Shared Environment Setup ---
