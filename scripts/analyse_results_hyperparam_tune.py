@@ -31,14 +31,11 @@ from src.analysis.summary import (
     calc_descriptive_stats,
     print_best_models,
 )
-from src.analysis.plots import create_box_plots
 
 CONFIG = {
     "top_n_models": 5,
-    "log_f1_constant": 1e-6,
     "check_duplicates": True,
     "print_best_performing_models": True,
-    "create_box_plots": True,
 }
     
 def parse_args():
@@ -48,7 +45,7 @@ def parse_args():
     )
     parser.add_argument(
         "--input-dir",
-        default="experiments/hyperparam_tuning_results",
+        default="experiments/system_lstm_tuning",
         help="Directory containing the hyperparameter tuning results."
     )
     parser.add_argument(
@@ -64,7 +61,7 @@ def main():
     base_path = get_base_path()
 
     directories = {
-        "input": resolve_path(base_path, args.input_dir),
+        "tuning_results": resolve_path(base_path, args.input_dir),
         "output": resolve_path(base_path, args.output_dir),
     }
 
@@ -72,8 +69,8 @@ def main():
         path.mkdir(parents=True, exist_ok=True)
 
     csv_files = get_filepaths(
-        directories["input"], 
-        folder_to_process="hyperparam_tuning_results"
+        directories, 
+        folder_to_process="tuning_results"
     )
 
     if not csv_files:
@@ -89,23 +86,20 @@ def main():
 
     merged_df.to_csv(combined_csv_path, index=False)
 
-    merged_df = check_for_duplicates(merged_df)
+    if CONFIG["check_duplicates"]:
+        merged_df = check_for_duplicates(merged_df)
 
     print_summary_stats(merged_df)
 
     if CONFIG["print_best_performing_models"]:
         for dataset in merged_df["dataset_type"].unique():
             for model_type in merged_df["model_type"].unique():
-                    mean = calc_descriptive_stats(merged_df, measure="f1", dataset_type=dataset, model_type=model_type)
-        
-                    if np.isnan(mean):
-                        continue
-
-                    print_best_models(merged_df, measure="f1", n=CONFIG["top_n_models"], dataset_type=dataset, model_type=model_type)
+                mean = calc_descriptive_stats(merged_df, measure="macro_f1", dataset_type=dataset, model_type=model_type)
     
-    # Create box plots for visualization
-    if CONFIG["create_box_plots"]:
-        create_box_plots(merged_df, output_dir=graph_dir)
+                if np.isnan(mean):
+                    continue
+
+                print_best_models(merged_df, measure="macro_f1", n=CONFIG["top_n_models"], dataset_type=dataset, model_type=model_type)
 
 if __name__ == "__main__":
     main()
