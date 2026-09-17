@@ -58,6 +58,6 @@ python -m scripts.hyperparam_tuning_lstm \
     ${BIDIRECTIONAL_FLAG} \
     --hidden_size "${HIDDEN_SIZE}" \
     --speechf_text_pca "${SPEECHF_TEXT_PCA}" \
-    --speechf_speech_pca "${SPEECHF_SPEECH_PCA}" \
+    --speechf_wav_pca "${SPEECHF_SPEECH_PCA}" \
     --pretrained_text_model "${TARGET_TEXT_MODEL}" \
     --pretrained_speech_model "${TARGET_SPEECH_MODEL}"

@@ -23,6 +23,6 @@ python -m scripts.hyperparam_tuning_lstm \
     --use_attention \
     --hidden_size 384 \
     --speechf_text_pca 0.8 \
-    --speechf_speech_pca 0.6 \
+    --speechf_wav_pca 0.6 \
     --pretrained_text_model "roberta" \
     --pretrained_speech_model "wavlm"
