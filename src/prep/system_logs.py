@@ -201,10 +201,11 @@ class SemanticParser:
 
 class DataPreprocessor:
     """Preprocess the System-derived features prior to classification."""
-    def __init__(self, df = None, config = None, device = None):
+    def __init__(self, df = None, config = None, device = None, skip_embedding = False):
         self.df = df.copy() if df is not None else pd.DataFrame()
         self.config = config if config is not None else {}
         self.device = device
+        self.skip_embedding = skip_embedding
 
     def extract_keys_sem_parse(self):
         """
@@ -323,7 +324,8 @@ class DataPreprocessor:
                 )
     
         # Derive Text Embeddings for the Utterance and Prompt cols
-        self.extract_text_embeddings()
+        if not self.skip_embedding:
+            self.extract_text_embeddings()
 
         # Drop columns unnecessary for classification
         drop_cols = self.config.get("cols_to_drop", [])

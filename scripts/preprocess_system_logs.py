@@ -69,7 +69,9 @@ def parse_args():
     parser.add_argument("--debug",
                         action="store_true",
                         help="Run in debug mode with a smaller dataset for faster execution.")
-
+    parser.add_argument("--skip-embeddings",
+                        action="store_true",
+                        help="Skip embedding generation for faster execution.")
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -87,12 +89,22 @@ if __name__ == "__main__":
 
     system_logs_path = resolve_path(base_path, args.system_log_data)
 
+    output_files = {
+        "system_prompts": output_dir / "system_prompts_iq.csv",
+        "processed_features": output_dir / "system_features.csv"
+    }
+
     if args.debug:
-        system_prompts_output_path = output_dir / "system_prompts_iq_debug.csv"
-        processed_features_output_path = output_dir / "system_features_debug.csv"
-    else:
-        system_prompts_output_path = output_dir / "system_prompts_iq_full.csv"
-        processed_features_output_path = output_dir / "system_features_full.csv"
+        output_files = {
+            key: path.with_stem(f"{path.stem}_debug") 
+            for key, path in output_files.items()
+        }
+
+    if args.skip_embeddings:
+        output_files = {
+            key: path.with_stem(f"{path.stem}_no_embeds") 
+            for key, path in output_files.items()
+        }
     
     raw_df = pd.read_csv(
         system_logs_path, 
@@ -110,16 +122,16 @@ if __name__ == "__main__":
 
     prompt_df = cleaned_df[["CallID","Prompt", "IQMedian"]]
     prompt_df.to_csv(
-        system_prompts_output_path, 
+        output_files["system_prompts"], 
         index = False, 
         header = True
     )
 
-    processor = DataPreprocessor(cleaned_df, CONFIG, device)
+    processor = DataPreprocessor(cleaned_df, CONFIG, device, skip_embedding=args.skip_embeddings)
     preprocessed_df = processor.run_preprocessing_pipeline()
 
     preprocessed_df.to_csv(
-        processed_features_output_path, 
+        output_files["processed_features"], 
         index = False, 
         header = True
     )

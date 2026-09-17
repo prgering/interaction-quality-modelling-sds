@@ -81,8 +81,6 @@ class AdditiveSelfAttention(nn.Module):
         self.b_a = nn.Parameter(torch.zeros(1))
 
     def forward(self, H, mask=None):
-        batch_size, seq_len, hidden_size = H.size()
-
         # Project features into attention space
         proj_t = self.W_t(H).unsqueeze(2)
         proj_t_prime = self.W_t_prime(H).unsqueeze(1)
