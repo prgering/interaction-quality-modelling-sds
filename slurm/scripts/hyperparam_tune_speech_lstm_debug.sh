@@ -4,8 +4,8 @@
 #SBATCH --partition=gpu
 #SBATCH --qos=gpu
 #SBATCH --nodes=1
-#SBATCH --mem=90G
-#SBATCH --gres=gpu:1
+#SBATCH --mem=80G
+#SBATCH --gres=gpu:a100:1
 #SBATCH --cpus-per-task=1
 #
 # ---USER REQUIRED---
