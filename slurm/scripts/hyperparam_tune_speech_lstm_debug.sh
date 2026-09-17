@@ -17,6 +17,9 @@ source slurm/scripts/setup_env.sh
 # Ensure output log folder exists
 mkdir -p logs/speech_lstm_tuning
 
+# Force PyTorch memory allocator to split blocks and reduce fragmentation
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
 # Execute your Python training script, redirecting stdout and stderr
 python -m scripts.hyperparam_tuning_lstm \
     speech \
