@@ -10,6 +10,7 @@
 # ---USER REQUIRED---
 #SBATCH --partition=gpu
 #SBATCH --qos=gpu
+#SBATCH --gres=gpu:h100:1
 #SBATCH --output=logs/speech_lstm_tuning/%x_%A_%a.txt
 
 # --- Source Shared Environment Setup ---

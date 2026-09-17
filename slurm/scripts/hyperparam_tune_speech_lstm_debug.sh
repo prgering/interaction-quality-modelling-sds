@@ -1,14 +1,15 @@
 #!/bin/bash
 #SBATCH --job-name=speech_lstm_tuning
-#SBATCH --time=10:00:00
+#SBATCH --time=20:00:00
 #SBATCH --nodes=1
-#SBATCH --mem=40G
+#SBATCH --mem=90G
 #SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=4
 #
 # ---USER REQUIRED---
 #SBATCH --partition=gpu
 #SBATCH --qos=gpu
+#SBATCH --gres=gpu:h100:1
 #SBATCH --output=logs/speech_lstm_tuning/%x_%A_%a.txt
 
 # --- Source Shared Environment Setup ---
@@ -16,9 +17,6 @@ source slurm/scripts/setup_env.sh
 
 # Ensure output log folder exists
 mkdir -p logs/speech_lstm_tuning
-
-# Force PyTorch memory allocator to split blocks and reduce fragmentation
-export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 # Execute your Python training script, redirecting stdout and stderr
 python -m scripts.hyperparam_tuning_lstm \
