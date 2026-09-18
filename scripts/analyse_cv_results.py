@@ -1,15 +1,14 @@
 # Code Summary
 """
-This script analyzes the results of hyperparameter tuning experiments for LSTM models.
+This script analyses the results of hyperparameter tuning experiments for LSTM models.
 
 It includes functions to:
-    - parse filenames for hyperparameter settings, 
-    - read and process results files,
     - combine results from multiple experiments,
-    - visualize performance metrics,
-    - perform regression analysis to understand the impact of different hyperparameters on model performance. 
+    - check for duplicates,
+    - calculate descriptive statistics,
+    - print summary statistics, and
+    - identify the best performing models based on specified metrics.
     
-The script generates various plots and saves combined results to CSV files.
 """
 
 # Imports

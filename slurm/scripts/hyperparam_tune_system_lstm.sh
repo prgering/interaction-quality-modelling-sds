@@ -1,15 +1,15 @@
 #!/bin/bash
 #SBATCH --job-name=system_lstm_tuning
-#SBATCH --time=10:00:00
+#SBATCH --time=5:00:00
+#SBATCH --partition=gpu
+#SBATCH --qos=gpu
 #SBATCH --nodes=1
 #SBATCH --mem=40G
-#SBATCH --gpus-per-node=1
-#SBATCH --cpus-per-task=4
+#SBATCH --gres=gpu:a100:1
+#SBATCH --cpus-per-task=1
 #SBATCH --array=1-144
 #
 # ---USER REQUIRED---
-#SBATCH --partition=gpu
-#SBATCH --qos=gpu
 #SBATCH --output=logs/system_lstm_tuning/%x_%A_%a.txt
 
 # --- Source Shared Environment Setup ---
@@ -47,7 +47,7 @@ echo "  PCA System TEXT: ${SYSTEMF_PCA}"
 echo "  Pretrained Text Model: ${TEXT_MODEL}"
 
 # --- Execution ---
-python -m scripts.hyperparam_tuning_lstm \
+python -m scripts.train_cv \
     system \
     ${USE_ATTENTION_FLAG} \
     ${BIDIRECTIONAL_FLAG} \

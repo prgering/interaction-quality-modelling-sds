@@ -1,14 +1,14 @@
 #!/bin/bash
 #SBATCH --job-name=system_lstm_tuning
 #SBATCH --time=1:00:00
-#SBATCH --nodes=1
-#SBATCH --mem=40G
-#SBATCH --gpus-per-node=1
-#SBATCH --cpus-per-task=4
-#
-# ---USER REQUIRED---
 #SBATCH --partition=gpu
 #SBATCH --qos=gpu
+#SBATCH --nodes=1
+#SBATCH --mem=40G
+#SBATCH --gres=gpu:a100:1
+#SBATCH --cpus-per-task=1
+#
+# ---USER REQUIRED---
 #SBATCH --output=logs/system_lstm_tuning/%x_%A_%a.txt
 
 # --- Source Shared Environment Setup ---
@@ -18,7 +18,7 @@ source slurm/scripts/setup_env.sh
 mkdir -p logs/system_lstm_tuning
 
 # --- Execution ---
-python -m scripts.hyperparam_tuning_lstm \
+python -m scripts.train_cv \
     system \
     --use_attention \
     --hidden_size 256 \

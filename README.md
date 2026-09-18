@@ -117,18 +117,18 @@ Debugging mode: running hyperparameter tuning on a small data subset.
 * a. Speech Features
 
 ```bash
-python -m scripts/hyperparam_tuning_lstm speech --speechf_text_pca 0.5  --speechf_wav_pca 0.5 --debug
+python -m scripts/train_cv speech --speechf_text_pca 0.5  --speechf_wav_pca 0.5 --debug
 ```
 
 * b. System Features
 
 ```bash
-python -m scripts/hyperparam_tuning_lstm system --systemf_text_pca 0.5 --debug
+python -m scripts/train_cv system --systemf_text_pca 0.5 --debug
 ```
 
 **2. HPC Execution via Slurm**
 
-Runs Slurm array jobs driven by a configuration text file. Generate parameter combinations using `scripts/create_hyperparam_combos.py`, and ensure the `#SBATCH --array` size matches the total number of lines in the generated text file.
+Runs Slurm array jobs driven by a configuration text file. Generate parameter combinations using `scripts/generate_hyperparam_configs.py`, and ensure the `#SBATCH --array` size matches the total number of lines in the generated text file.
 
 * a. Speech features
 
@@ -141,6 +141,16 @@ sbatch slurm/scripts/hyperparam_tune_speech_lstm.sh
 ```bash
 sbatch slurm/scripts/hyperparam_tune_system_lstm.sh
 ```
+
+### Step H: Analyse Hyperparameter Tuning Results
+
+Produce summary statistics and identify best-performing configurations based on a specified performance metrics (e.g. Macro F1).
+
+```bash
+python -m scripts/analyse_cv_results
+```
+
+### Step I: Train and Evaluate the Best-Performing LSTM Model
 
 ## Running the Fine-Tuned Pipeline
 Complete Steps A &mdash; E from the Frozen Pipeline Instructions. 

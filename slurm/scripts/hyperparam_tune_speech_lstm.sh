@@ -1,16 +1,15 @@
 #!/bin/bash
 #SBATCH --job-name=speech_lstm_tuning
-#SBATCH --time=10:00:00
+#SBATCH --time=5:00:00
+#SBATCH --partition=gpu
+#SBATCH --qos=gpu
 #SBATCH --nodes=1
-#SBATCH --mem=40G
-#SBATCH --gpus-per-node=1
-#SBATCH --cpus-per-task=4
+#SBATCH --mem=80G
+#SBATCH --gres=gpu:a100:1
+#SBATCH --cpus-per-task=1
 #SBATCH --array=1-192
 #
 # ---USER REQUIRED---
-#SBATCH --partition=gpu
-#SBATCH --qos=gpu
-#SBATCH --gres=gpu:h100:1
 #SBATCH --output=logs/speech_lstm_tuning/%x_%A_%a.txt
 
 # --- Source Shared Environment Setup ---
@@ -53,7 +52,7 @@ echo "  Pretrained Text Model: ${TEXT_MODEL}"
 echo "  Pretrained Speech Model: ${SPEECH_MODEL}"
 
 # Execute your Python training script, redirecting stdout and stderr
-python -m scripts.hyperparam_tuning_lstm \
+python -m scripts.train_cv \
     speech \
     ${USE_ATTENTION_FLAG} \
     ${BIDIRECTIONAL_FLAG} \
