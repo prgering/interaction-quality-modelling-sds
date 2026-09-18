@@ -22,3 +22,6 @@ def set_all_seeds(seed):
             torch.backends.cudnn.benchmark = False
     except ImportError:
         print("Warning: PyTorch not found. Skipping PyTorch seed setting.")
+
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)

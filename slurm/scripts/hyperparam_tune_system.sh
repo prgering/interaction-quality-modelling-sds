@@ -47,7 +47,7 @@ echo "  PCA System TEXT: ${SYSTEMF_PCA}"
 echo "  Pretrained Text Model: ${TEXT_MODEL}"
 
 # --- Execution ---
-python -m scripts.train_cv \
+python -m scripts.train_lstm \
     system \
     ${USE_ATTENTION_FLAG} \
     ${BIDIRECTIONAL_FLAG} \

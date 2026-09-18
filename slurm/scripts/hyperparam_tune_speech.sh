@@ -52,7 +52,7 @@ echo "  Pretrained Text Model: ${TEXT_MODEL}"
 echo "  Pretrained Speech Model: ${SPEECH_MODEL}"
 
 # Execute your Python training script, redirecting stdout and stderr
-python -m scripts.train_cv \
+python -m scripts.train_lstm \
     speech \
     ${USE_ATTENTION_FLAG} \
     ${BIDIRECTIONAL_FLAG} \

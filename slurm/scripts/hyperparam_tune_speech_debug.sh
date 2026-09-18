@@ -18,7 +18,7 @@ source slurm/scripts/setup_env.sh
 mkdir -p logs/speech_lstm_tuning
 
 # Execute your Python training script, redirecting stdout and stderr
-python -m scripts.train_cv \
+python -m scripts.train_lstm \
     speech \
     --use_attention \
     --hidden_size 384 \

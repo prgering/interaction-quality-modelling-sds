@@ -20,7 +20,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.utils import calc_metrics
+from src.utils import calc_metrics, count_parameters
 
 class SequenceDataset(Dataset):
     """
@@ -139,6 +139,32 @@ class LstmManager:
         self.train_filecodes = train_df[filecode_col].unique()
         self.features = [c for c in train_df.columns if c not in [dv_col, filecode_col]]
         
+    def _build_param_grid(self):
+        if not self.args:
+            raise ValueError("Arguments ('args') were not provided to LstmManager. " \
+            "Hyperparameter tuning requires them.")
+
+        def to_list(val, default):
+            v = val if val is not None else default
+            return v if isinstance(v, list) else [v]
+
+        param_grid = {
+            "bidirectional": to_list(getattr(self.args, 'bidirectional', False), False),
+            "hidden_sizes": to_list(getattr(self.args, 'hidden_size', 128), 128),
+            "num_layers": to_list(getattr(self.args, 'num_layers', [1, 2, 3, 4]), [1, 2, 3, 4]),
+            "learning_rates": to_list(getattr(self.args, 'learning_rate', [0.001, 0.0005]), [0.001, 0.0005]),
+            "epochs": to_list(getattr(self.args, 'epochs', 250), 250),
+            "batch_size": to_list(getattr(self.args, 'batch_size', [5, 15, 25]), [5, 15, 25]),
+            "use_attention": to_list(getattr(self.args, 'use_attention', False), False),
+            "n_comp_systemf": to_list(getattr(self.args, 'systemf_text_pca', None), None),
+            "n_comp_speechf_text": to_list(getattr(self.args, 'speechf_text_pca', None), None),
+            "n_comp_speechf_wav": to_list(getattr(self.args, 'speechf_wav_pca', None), None),
+            "pretrained_text_model": to_list(getattr(self.args, 'pretrained_text_model', None), None),
+            "pretrained_speech_model": to_list(getattr(self.args, 'pretrained_speech_model', None), None)
+        }
+
+        return param_grid
+
     def _setup_training(self, params, y_fold=None):
         model = LSTMModel(
             len(self.features), params['hidden_sizes'], 
@@ -226,29 +252,7 @@ class LstmManager:
 
     def run_hyperparam_tuning(self):
         "Standard Tuning with 10-fold CV"
-
-        if not self.args:
-            raise ValueError("Arguments ('args') were not provided to LstmManager. " \
-            "Hyperparameter tuning requires them.")
-
-        def to_list(val, default):
-            v = val if val is not None else default
-            return v if isinstance(v, list) else [v]
-
-        param_grid = {
-            "bidirectional": to_list(getattr(self.args, 'bidirectional', False), False),
-            "hidden_sizes": to_list(getattr(self.args, 'hidden_size', 128), 128),
-            "num_layers": to_list(getattr(self.args, 'num_layers', [1, 2, 3, 4]), [1, 2, 3, 4]),
-            "learning_rates": to_list(getattr(self.args, 'learning_rate', [0.001, 0.0005]), [0.001, 0.0005]),
-            "epochs": to_list(getattr(self.args, 'epochs', 250), 250),
-            "batch_size": to_list(getattr(self.args, 'batch_size', [5, 15, 25]), [5, 15, 25]),
-            "use_attention": to_list(getattr(self.args, 'use_attention', False), False),
-            "n_comp_systemf": to_list(getattr(self.args, 'systemf_text_pca', None), None),
-            "n_comp_speechf_text": to_list(getattr(self.args, 'speechf_text_pca', None), None),
-            "n_comp_speechf_wav": to_list(getattr(self.args, 'speechf_wav_pca', None), None),
-            "pretrained_text_model": to_list(getattr(self.args, 'pretrained_text_model', None), None),
-            "pretrained_speech_model": to_list(getattr(self.args, 'pretrained_speech_model', None), None)
-        }
+        param_grid = self._build_param_grid()
 
         results_dict = defaultdict(dict)
         keys = list(param_grid.keys())
@@ -357,79 +361,84 @@ class LstmManager:
         return results_dict
 
 
-    # def run_final_evaluation(self, lstm_hyperparam_dict):
-    #     """Train on whole train set, evaluate on test set."""
+    def run_final_evaluation(self):
+        """Train on whole train set, evaluate on test set."""
 
-    #     if self.test_df is None:
-    #         raise ValueError("Test DataFrame must be provided for evaluation.")
+        if self.test_df is None:
+            raise ValueError("Test DataFrame must be provided for evaluation.")
 
-    #     for key, values in lstm_hyperparam_dict.items():
-    #         if isinstance(values, list):
-    #             lstm_hyperparam_dict[key] = values[0]
-    #         else:
-    #             lstm_hyperparam_dict[key] = values
+        hyperparams = self._build_param_grid()
 
-    #     model_type = "bilstm" if lstm_hyperparam_dict['bidirectional'] else "lstm"
-    #     if lstm_hyperparam_dict['use_attention']:
-    #         model_type += "_attention"
+        for key, values in hyperparams.items():
+            if isinstance(values, list):
+                hyperparams[key] = values[0]
+            else:
+                hyperparams[key] = values
 
-    #     train_codes, val_codes = train_test_split(
-    #         self.train_filecodes, test_size=0.2, random_state=42
-    #     )
+        model_type = "bilstm" if hyperparams['bidirectional'] else "lstm"
+        if hyperparams['use_attention']:
+            model_type += "_attention"
+
+        # Adjusted evaluation batch size to prevent CUDA OOM on smaller GPUs.
+        eval_batch_size = hyperparams['batch_size'] * 2
+
+        train_codes, val_codes = train_test_split(
+            self.train_filecodes, test_size=0.2, random_state=42
+        )
         
-    #     train_split = self.train_df[self.train_df[self.filecode_col].isin(train_codes)]
-    #     val_split = self.train_df[self.train_df[self.filecode_col].isin(val_codes)]
+        train_split = self.train_df[self.train_df[self.filecode_col].isin(train_codes)]
+        val_split = self.train_df[self.train_df[self.filecode_col].isin(val_codes)]
 
-    #     # 2. Prepare DataLoaders for both training and validation sets
-    #     train_dataset = SequenceDataset(train_split, self.filecode_col, self.features, self.dv_col)
-    #     val_dataset = SequenceDataset(val_split, self.filecode_col, self.features, self.dv_col)
-    #     test_dataset = SequenceDataset(self.test_df, self.filecode_col, self.features, self.dv_col)
+        # 2. Prepare DataLoaders for both training and validation sets
+        train_dataset = SequenceDataset(train_split, self.filecode_col, self.features, self.dv_col)
+        val_dataset = SequenceDataset(val_split, self.filecode_col, self.features, self.dv_col)
+        test_dataset = SequenceDataset(self.test_df, self.filecode_col, self.features, self.dv_col)
 
-    #     train_loader = DataLoader(
-    #         train_dataset, 
-    #         batch_size=lstm_hyperparam_dict["batch_size"], 
-    #         shuffle=True, 
-    #         collate_fn=collate_fn, 
-    #     )
+        train_loader = DataLoader(
+            train_dataset, 
+            batch_size=hyperparams["batch_size"], 
+            shuffle=True, 
+            collate_fn=collate_fn, 
+        )
                 
-    #     val_loader = DataLoader(
-    #         val_dataset, 
-    #         batch_size=len(val_dataset), 
-    #         collate_fn=collate_fn, 
-    #     )
+        val_loader = DataLoader(
+            val_dataset, 
+            batch_size=eval_batch_size, 
+            collate_fn=collate_fn, 
+        )
 
-    #     test_loader = DataLoader(
-    #         test_dataset, 
-    #         batch_size=len(test_dataset), 
-    #         collate_fn=collate_fn, 
-    #     )
+        test_loader = DataLoader(
+            test_dataset, 
+            batch_size=eval_batch_size, 
+            collate_fn=collate_fn, 
+        )
         
-    #     model, criterion, optimizer = self._setup_training(lstm_hyperparam_dict)
+        model, criterion, optimizer = self._setup_training(hyperparams)
 
-    #     total_params = count_parameters(model)
-    #     print(f"Total trainable parameters in the model: {total_params}")
+        total_params = count_parameters(model)
+        print(f"Total trainable parameters in the model: {total_params}")
 
-    #     model = self.train_model(
-    #         model, 
-    #         criterion, 
-    #         optimizer, 
-    #         lstm_hyperparam_dict, 
-    #         train_loader, 
-    #         val_loader=val_loader
-    #     )
+        model = self.train_model(
+            model, 
+            criterion, 
+            optimizer, 
+            hyperparams, 
+            train_loader, 
+            val_loader=val_loader
+        )
 
-    #     _, test_actuals, test_predicts = self.evaluate_on_loader(
-    #         model, 
-    #         test_loader,
-    #         verbose=True
-    #     )
+        _, test_actuals, test_predicts = self.evaluate_on_loader(
+            model, 
+            test_loader,
+            verbose=True
+        )
 
-    #     test_results = calc_metrics(
-    #         test_actuals, 
-    #         test_predicts,
-    #         dataset_type=self.dataset_type,
-    #         model_type=model_type,
-    #         print_confusion_matrix=True,
-    #     )
+        test_results = calc_metrics(
+            test_actuals, 
+            test_predicts,
+            dataset_type=self.dataset_type,
+            model_type=model_type,
+            print_confusion_matrix=True,
+        )
 
-    #     return test_results, test_actuals, test_predicts
+        return test_results, test_actuals, test_predicts

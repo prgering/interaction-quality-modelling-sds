@@ -18,7 +18,7 @@ source slurm/scripts/setup_env.sh
 mkdir -p logs/system_lstm_tuning
 
 # --- Execution ---
-python -m scripts.train_cv \
+python -m scripts.train_lstm \
     system \
     --use_attention \
     --hidden_size 256 \

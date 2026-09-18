@@ -106,29 +106,12 @@ only scaled.
 python scripts/prepare_features_for_modelling.py
 ```
 
-### Step G: Hyperparameter Tuning with LSTM
+### Step G: Model Training and Evaluation with LSTM
 
-Trains interaction quality classifier via 10-fold grouped cross-validation and hyperparameter tuning for a specified feature set.
+Trains interaction quality classifier using LSTM architectures. Supports both **hyperparameter tuning** (10-fold grouped cross-validation grid search) and **final model evaluation** on a held out test set.
+Hyperparameter sweeps are driven by slurm array jobs. Generate parameter configurations using `scripts/generate_hyperparam_configs.py`, and ensure the `#SBATCH --array` size matches the total number of lines in the generated text file.
 
-**1. Local Execution (CPU / Fast Mode)**
-
-Debugging mode: running hyperparameter tuning on a small data subset.
-
-* a. Speech Features
-
-```bash
-python -m scripts/train_cv speech --speechf_text_pca 0.5  --speechf_wav_pca 0.5 --debug
-```
-
-* b. System Features
-
-```bash
-python -m scripts/train_cv system --systemf_text_pca 0.5 --debug
-```
-
-**2. HPC Execution via Slurm**
-
-Runs Slurm array jobs driven by a configuration text file. Generate parameter combinations using `scripts/generate_hyperparam_configs.py`, and ensure the `#SBATCH --array` size matches the total number of lines in the generated text file.
+**1. Hyperparameter Tuning (--mode tune)**
 
 * a. Speech features
 
@@ -142,15 +125,9 @@ sbatch slurm/scripts/hyperparam_tune_speech_lstm.sh
 sbatch slurm/scripts/hyperparam_tune_system_lstm.sh
 ```
 
-### Step H: Analyse Hyperparameter Tuning Results
+**2. Final Model Evaluation (--mode evaluate)**
+Trains models on the full training set using the best-performing hyperparameters and evaluates predictions on the test set.
 
-Produce summary statistics and identify best-performing configurations based on a specified performance metrics (e.g. Macro F1).
-
-```bash
-python -m scripts/analyse_cv_results
-```
-
-### Step I: Train and Evaluate the Best-Performing LSTM Model
 
 ## Running the Fine-Tuned Pipeline
 Complete Steps A &mdash; E from the Frozen Pipeline Instructions. 
