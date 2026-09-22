@@ -1,8 +1,10 @@
 # imports
+import os
 import sys
 import argparse
 import numpy as np
 import torch
+import pandas as pd
 from sklearn.preprocessing import StandardScaler
 from pathlib import Path
 
@@ -169,7 +171,7 @@ def main():
 
     # Loop through random seeds for training and evaluation
     for seed in random_seeds:
-        print(f"\n" + "="*40)
+        print("\n" + "="*40)
         print(f"\nRunning with random seed: {seed}")
         print("="*40)
         set_all_seeds(seed)
@@ -208,6 +210,20 @@ def main():
         f1_value = val_results["macro avg"]["f1-score"]
         
         print(f"Hyperparameters: {param_grid}, Macro Average Recall: {recall_value}, Macro Average F1: {f1_value}")
+
+        if not args.run_final_eval:
+            task_id = os.environ.get("SLURM_ARRAY_TASK_ID", "local")
+            output_file_path = directories["output"] / f"tuning_results_{args.dataset_type}_{task_id}.csv"
+
+            row = {
+                **param_grid,
+                "macro_recall": recall_value,
+                "macro_f1": f1_value,
+            }
+
+            df = pd.DataFrame([row])
+            df.to_csv(output_file_path, index=False)
+            print(f"Tuning results saved to: {output_file_path}")
 
         # Final Evaluation on Test Set (if specified)
         if args.run_final_eval:

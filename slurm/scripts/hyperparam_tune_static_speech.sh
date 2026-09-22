@@ -51,7 +51,7 @@ echo "  PCA Speechf SPEECH: ${SPEECH_PCA}"
 echo "  Pretrained Text Model: ${TEXT_MODEL}"
 echo "  Pretrained Speech Model: ${SPEECH_MODEL}"
 
-# Execute your Python training script, redirecting stdout and stderr
+# --- Execution ---
 python -m scripts.train_lstm \
     speech \
     ${USE_ATTENTION_FLAG} \
