@@ -144,8 +144,7 @@ Complete Steps A &mdash; E from the Frozen Pipeline Instructions.
 
 For Step D (Speech Feature Extraction), only extract the OpenSMILE features by specifying the `static_speech` mode.
 
-TO BE UPDATED
-
+### Step F: 
 
 ## License
 

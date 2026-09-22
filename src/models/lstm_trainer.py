@@ -22,6 +22,43 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.utils import calc_metrics, count_parameters
 
+def build_param_grid(args, add_fine_tuning_params=False):
+    """Builds a parameter grid from CLI arguments"""
+    if not args:
+        raise ValueError("Arguments ('args') were not provided to build parameter grid.")
+
+    def ensure_list(val, default):
+        """Extract value or fallback default, ensuring the result is wrapped in a list."""
+        res = getattr(args, val, default)
+        if res is None:
+            return [None]
+        return res if isinstance(res, list) else [res]
+
+    param_grid = {
+        "bidirectional": ensure_list('bidirectional', False),
+        "hidden_size": ensure_list('hidden_size', 128),
+        "num_layers": ensure_list('num_layers', [1, 2, 3, 4]),
+        "learning_rate": ensure_list('learning_rate', [0.001, 0.0005]),
+        "epochs": ensure_list('epochs', 250),
+        "batch_size": ensure_list('batch_size', [5, 15, 25]),
+        "use_attention": ensure_list('use_attention', False),
+        "n_comp_systemf": ensure_list('systemf_text_pca', None),
+        "n_comp_speechf_text": ensure_list('speechf_text_pca', None),
+        "n_comp_speechf_wav": ensure_list('speechf_wav_pca', None),
+        "pretrained_text_model": ensure_list('pretrained_text_model', None),
+        "pretrained_speech_model": ensure_list('pretrained_speech_model', None)
+    }
+
+    if add_fine_tuning_params:
+        param_grid.update({
+            "window_size": ensure_list('window_size', 10),
+            "transformer_lr": ensure_list('transformer_lr', 1e-6),
+            "head_lr": ensure_list('head_lr', 5e-4),
+            "num_frozen_layers": ensure_list('num_frozen_layers', 9)
+        })
+
+    return param_grid
+
 class SequenceDataset(Dataset):
     """
     A PyTorch Dataset for handling sequence data grouped by a file code.
@@ -138,36 +175,11 @@ class LstmManager:
 
         self.train_filecodes = train_df[filecode_col].unique()
         self.features = [c for c in train_df.columns if c not in [dv_col, filecode_col]]
-        
-    def _build_param_grid(self):
-        if not self.args:
-            raise ValueError("Arguments ('args') were not provided to LstmManager. " \
-            "Hyperparameter tuning requires them.")
-
-        def to_list(val, default):
-            v = val if val is not None else default
-            return v if isinstance(v, list) else [v]
-
-        param_grid = {
-            "bidirectional": to_list(getattr(self.args, 'bidirectional', False), False),
-            "hidden_sizes": to_list(getattr(self.args, 'hidden_size', 128), 128),
-            "num_layers": to_list(getattr(self.args, 'num_layers', [1, 2, 3, 4]), [1, 2, 3, 4]),
-            "learning_rates": to_list(getattr(self.args, 'learning_rate', [0.001, 0.0005]), [0.001, 0.0005]),
-            "epochs": to_list(getattr(self.args, 'epochs', 250), 250),
-            "batch_size": to_list(getattr(self.args, 'batch_size', [5, 15, 25]), [5, 15, 25]),
-            "use_attention": to_list(getattr(self.args, 'use_attention', False), False),
-            "n_comp_systemf": to_list(getattr(self.args, 'systemf_text_pca', None), None),
-            "n_comp_speechf_text": to_list(getattr(self.args, 'speechf_text_pca', None), None),
-            "n_comp_speechf_wav": to_list(getattr(self.args, 'speechf_wav_pca', None), None),
-            "pretrained_text_model": to_list(getattr(self.args, 'pretrained_text_model', None), None),
-            "pretrained_speech_model": to_list(getattr(self.args, 'pretrained_speech_model', None), None)
-        }
-
-        return param_grid
+    
 
     def _setup_training(self, params, y_fold=None):
         model = LSTMModel(
-            len(self.features), params['hidden_sizes'], 
+            len(self.features), params['hidden_size'], 
             params['num_layers'], self.num_classes, 
             params['bidirectional'], params['use_attention']
         ).to(self.device)
@@ -179,7 +191,7 @@ class LstmManager:
 
         criterion = nn.CrossEntropyLoss(weight=class_weights, ignore_index=-1)
 
-        optimizer = optim.Adam(model.parameters(), lr=params['learning_rates'])
+        optimizer = optim.Adam(model.parameters(), lr=params['learning_rate'])
         return model, criterion, optimizer
 
     def train_model(self, model, criterion, optimizer, params, train_loader, val_loader=None, patience=25, min_delta=1e-4):
@@ -252,7 +264,7 @@ class LstmManager:
 
     def run_hyperparam_tuning(self):
         "Standard Tuning with 10-fold CV"
-        param_grid = self._build_param_grid()
+        param_grid = build_param_grid(args=self.args)
 
         results_dict = defaultdict(dict)
         keys = list(param_grid.keys())
@@ -367,7 +379,7 @@ class LstmManager:
         if self.test_df is None:
             raise ValueError("Test DataFrame must be provided for evaluation.")
 
-        hyperparams = self._build_param_grid()
+        hyperparams = build_param_grid(args=self.args)
 
         for key, values in hyperparams.items():
             if isinstance(values, list):
