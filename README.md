@@ -128,6 +128,7 @@ sbatch slurm/scripts/hyperparam_tune_system_lstm.sh
 ```
 
 **2. Final Model Evaluation (--mode evaluate)**
+
 Trains models on the full training set using the best-performing hyperparameters and evaluates predictions on the test set. 
 
 Before running, place the best-performing hyperparameter configuration for each feature set in `slurm/configs/best_model_params.txt` (formatted as one configuration per line, with each parameter space-separated and the parameter order matching the order expected in the shell script).
