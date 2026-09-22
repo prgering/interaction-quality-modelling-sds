@@ -240,3 +240,6 @@ data/processed/*
 
 # Ignore logs folder
 logs/
+
+# Ignore slurm debug files
+slurm/scripts/*debug*
