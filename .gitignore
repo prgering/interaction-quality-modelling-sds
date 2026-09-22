@@ -243,3 +243,6 @@ logs/
 
 # Ignore slurm debug files
 slurm/scripts/*debug*
+
+# Ignore hyperparameter config files
+slurm/configs/*
