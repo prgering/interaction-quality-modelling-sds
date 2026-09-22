@@ -114,29 +114,29 @@ sbatch slurm/scripts/hyperparam_tune_system_lstm.sh
 
 ### Step H: Analyse Hyperparameter Tuning Results
 
-Analyses hyperparameter sweep results to identify optimal parameter configurations for both feature sets.
+Analyses cross-validation performance across hyperparameter sweeps to determine optimal parameter configurations for each feature set.
 
 ```bash
 python scripts/analyse_cv_results.py
 ```
 
 ### Step I: Final Model Evaluation
-Trains models on the full training set using the best-performing hyperparameters and evaluates predictions on the test set. 
+Trains models on the full training set using the optimal hyperparameter configurations and evaluates performance on the held-out test set. 
 
-Before running, place the best-performing hyperparameter configuration for each feature set (from Step H) in `slurm/configs/best_model_params.txt` (formatted as one configuration per line, with each parameter space-separated and the parameter order matching the order expected in the shell script).
+> Prerequisite: place the best hyperparameter configurations from Step H in `slurm/configs/best_model_params.txt` (one space-separated configuration per line).
 
 ```bash
 sbatch slurm/scripts/train_eval_best_models.sh
 ```
 
 ### Step J: Analyse Evaluation Results
-Performs multiple permutation tests with Holm-Bonferroni correction to compare Macro-F1 scores of different model variants on the test set.
+Performs pairwise permutation tests with Holm-Bonferroni correction to compare model performance (Macro-F1 & Recall) across model variants.
 
 ```bash
 python scripts/analyse_eval_results.py
 ```
 
-Note: Ensure you have completed both the static feature pipeline and the fine-tuned pipeline steps before running this analysis as it evaluates predictions across all static and fine-tuned model variants simultaneously.
+> Note: Complete both the Static Feature Pipeline and the Fine-Tuned Pipeline evaluation steps prior to running this script, as it compares all model variants simultaneously.
 
 ---
 ## Running the Fine-Tuned Pipeline
