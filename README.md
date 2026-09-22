@@ -5,7 +5,6 @@ Official Implementation for our Interspeech 2026 paper: **"A System-Agnostic App
 ## About The Project
 This project compares two approaches to training models to **classify interaction quality**: **system-dependent (SD)** and **system-agnostic (SA)**. The system-dependent approach involves using system-log data, such as ASR confidence scores and dialogue manager states, whereas the system-agnostic approach involves using speech-based features derived from audio recordings of the interaction. To make this comparison, we train Long Short Term Memory (LSTM) models on features and interaction quality labels derived from the **CMU Let's Go (LEGO) corpus**, a publicly available corpus of spoken interactions between a user and a bus information system. For more information, please read our [Interspeech Paper](https://doi.org/10.21437/Interspeech.2026-1152) and the LEGO corpus paper by Schmitt et al. (2012).
 
----
 ## Setup & Installation
 
 ### Prerequisites
@@ -27,11 +26,11 @@ This project compares two approaches to training models to **classify interactio
    ```
 
 ### Data Preparation
-You must download the LEGO corpus from the [University of Bamberg Resources Website](https://www.uni-bamberg.de/ds/ressourcen/lego/).
+Download the LEGO corpus from the [University of Bamberg Resources Website](https://www.uni-bamberg.de/ds/ressourcen/lego/).
 
-Once you have unzipped the downloaded folder, place it in the 'data/raw/' directory of this repository.
+Unzip the the downloaded folder and place it in the `data/raw/` directory.
 
----
+
 ## Running the Static Feature Pipeline
 
 ### Step A: System Log Preprocessing
