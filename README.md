@@ -8,18 +8,19 @@ This project compares two approaches to training models to **classify interactio
 ---
 ## Setup & Installation
 
-Prerequisites
+### Prerequisites
 * Python 3.10
 * [Anaconda](https://www.anaconda.com/) or Miniconda
 * (Optional) CUDA-compatible GPU for faster training
 
-1. Clone this repository to your local machine:
+### Environment Setup
+1. Clone the repository:
    ```bash
    git clone https://github.com/prgering/interaction-quality-modelling-sds.git
    cd interaction-quality-modelling-sds
    ```
 
-2. Create the virtual environment using the provided environment.yml file
+2. Create and activate the virtual environment
    ```bash
    conda env create -f environment.yml
    conda activate model_iq_env
