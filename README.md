@@ -30,12 +30,12 @@ Download the LEGO corpus from the [University of Bamberg Resources Website](http
 
 Unzip the the downloaded folder and place it in the `data/raw/` directory.
 
-
 ## Running the Static Feature Pipeline
 
 ### Step A: System Log Preprocessing
 
 Cleans raw system logs, expands semantic parses, and extracts prompt/utterance text embeddings using pretrained self-supervised models.
+
 ```bash
 python scripts/preprocess_system_logs.py
 ```
@@ -58,39 +58,33 @@ python scripts/align_system_prompts.py
 
 ### Step D: Speech Feature Extraction
 
-Combine user and agent transcripts and extract exchange-level speech features (OpenSMILE acoustic features, pretrained speech embeddings, and text embeddings).
+Combine user and agent transcripts to extract exchange-level speech features (OpenSMILE acoustic features, speech embeddings, and text embeddings).
 
 **1. Local Execution (CPU / Fast Mode)**
 
-* a. Extracts OpenSMILE features only
-
 ```bash
+# Extracts OpenSMILE features only
 python -m scripts/extract_speech_features --skip-embeddings
-```
 
-* b. Extracts full speech features for small subset of data
-
-```bash
+# Extracts full speech features for small subset of data
 python -m scripts/extract_speech_features --debug
 ```
 
 **2. HPC Execution via Slurm**
 
-* a. Extracts OpenSMILE features only
-
 ```bash
+# Extracts OpenSMILE features only
 sbatch slurm/scripts/extract_speech_features.sh static_speech
-```
 
-* b. Extracts full speech features (Requires GPU)
-
-```bash
+# Extracts full speech features (requires GPU)
 sbatch slurm/scripts/extract_speech_features.sh speech
 ```
 
 ### Step E: Filter System Log Features
 
-Excluding dialogues from the system-derived features if there are missing audio files or dialogues with no user or agent speech. This step can only be run once validated user and agent transcripts have been produced.
+Excluding dialogues from the system-derived features if there are missing audio files or dialogues with no user or agent speech. 
+
+> Prerequisite: This step can only be run once validated user and agent transcripts have been produced.
 
 ```bash
 python scripts/filter_system_features.py
