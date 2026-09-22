@@ -108,12 +108,11 @@ only scaled.
 python scripts/prepare_features_for_modelling.py
 ```
 
-### Step G: Model Training and Evaluation with LSTM
+### Step G: Hyperparameter Tuning with Static Features
 
-Trains interaction quality classifier using LSTM architectures. Supports both **hyperparameter tuning** (10-fold grouped cross-validation grid search) and **final model evaluation** on a held out test set.
+Performs hyperparameter tuning on LSTM classifier with static features (10-fold grouped cross-validation grid search).
+
 Hyperparameter sweeps are driven by slurm array jobs. Generate parameter configurations using `scripts/generate_hyperparam_configs.py`, and ensure the `#SBATCH --array` size matches the total number of lines in the generated text file.
-
-**1. Hyperparameter Tuning (--mode tune)**
 
 * a. Speech features
 
@@ -127,16 +126,31 @@ sbatch slurm/scripts/hyperparam_tune_speech_lstm.sh
 sbatch slurm/scripts/hyperparam_tune_system_lstm.sh
 ```
 
-**2. Final Model Evaluation (--mode evaluate)**
+### Step H: Analyse Hyperparameter Tuning Results
 
+Analyses hyperparameter sweep results to identify optimal parameter configurations for both feature sets.
+
+```bash
+python scripts/analyse_cv_results.py
+```
+
+### Step I: Final Model Evaluation
 Trains models on the full training set using the best-performing hyperparameters and evaluates predictions on the test set. 
 
-Before running, place the best-performing hyperparameter configuration for each feature set in `slurm/configs/best_model_params.txt` (formatted as one configuration per line, with each parameter space-separated and the parameter order matching the order expected in the shell script).
+Before running, place the best-performing hyperparameter configuration for each feature set (from Step H) in `slurm/configs/best_model_params.txt` (formatted as one configuration per line, with each parameter space-separated and the parameter order matching the order expected in the shell script).
 
 ```bash
 sbatch slurm/scripts/train_eval_best_models.sh
 ```
 
+### Step J: Analyse Evaluation Results
+Performs multiple permutation tests with Holm-Bonferroni correction to compare Macro-F1 scores of different model variants on the test set.
+
+```bash
+python scripts/analyse_eval_results.py
+```
+
+Note: Ensure you have completed both the static feature pipeline and the fine-tuned pipeline steps before running this analysis as it evaluates predictions across all static and fine-tuned model variants simultaneously.
 
 ## Running the Fine-Tuned Pipeline
 Complete Steps A &mdash; E from the Frozen Pipeline Instructions. 

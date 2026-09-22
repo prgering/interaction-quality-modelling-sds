@@ -95,10 +95,8 @@ def run_tuning(trainer, output_dir):
     df.to_csv(output_file_path, index=False)
     print(f"Tuning results saved to: {output_file_path}")
 
-def run_evaluation(trainer, output_dir):
+def run_evaluation(trainer, output_dir, dataset_type):
     """Executes training and evaluation of final model on test set."""
-
-    task_id = os.environ.get("SLURM_ARRAY_TASK_ID", "local")
 
     subdirectories = {
         "metrics": output_dir / "metrics",
@@ -109,31 +107,39 @@ def run_evaluation(trainer, output_dir):
     for path in subdirectories.values():
         path.mkdir(parents=True, exist_ok=True)
 
-    metrics_file_path = subdirectories["metrics"] / f"final_evaluation_{task_id}.csv"
+    metrics_file_path = subdirectories["metrics"] / f"final_evaluation.csv"
 
-    results, true_labels, pred_labels_dict = trainer.run_final_evaluation()
+    results, true_labels, pred_labels = trainer.run_final_evaluation()
 
-    records = []
-    for _, res in results.items():
-        row = {
-            **res["params"],
-            "macro_recall": res["recall"],
-            "macro_f1": res["f1"],
-        }
-        records.append(row)
+    row = {
+        **results["params"],
+        "macro_recall": results["recall"],
+        "macro_f1": results["f1"],
+    }
 
-    df = pd.DataFrame(records).sort_values(by="macro_f1", ascending=False)
+    df = pd.DataFrame([row])
     df.to_csv(metrics_file_path, index=False)
     print(f"Final evaluation results saved to: {metrics_file_path}")
 
     # Save true labels and predictions
-    pred_filepath = subdirectories["predictions"] / f"predictions_{task_id}.npy"
-    np.save(pred_filepath, np.array(pred_labels_dict))
+    pred_filepath = subdirectories["predictions"] / f"predictions_best_model_frozen_{dataset_type}.npy"
+    np.save(pred_filepath, pred_labels)
     print(f"Predictions saved to: {pred_filepath}")
 
-    true_labels_path = subdirectories["true_labels"] / f"true_labels_{task_id}.npy"
-    np.save(true_labels_path, np.array(true_labels))
-    print(f"True labels saved to: {true_labels_path}")
+    true_labels_path = subdirectories["true_labels"] / "true_labels_eval.npy"
+
+    if true_labels_path.exists():
+        existing_labels = np.load(true_labels_path)
+        if not np.array_equal(existing_labels, true_labels):
+            raise ValueError(
+                f"True labels file already exists at {true_labels_path}" \
+                 " and does not match the current true labels. " \
+                 "Please check the files."
+                )
+        print(f"Verified true labels match existing file at: {true_labels_path}")
+    else:
+        np.save(true_labels_path, true_labels)
+        print(f"True labels saved to: {true_labels_path}")
 
 
 if __name__ == "__main__":
@@ -176,4 +182,4 @@ if __name__ == "__main__":
     if args.mode == "tune":
         run_tuning(trainer, directories["cv_output"])
     elif args.mode == "evaluate":
-        run_evaluation(trainer, directories["eval_output"])
+        run_evaluation(trainer, directories["eval_output"], args.dataset_type)
