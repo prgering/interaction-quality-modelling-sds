@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=eval_best_models
+#SBATCH --job-name=eval_best_static
 #SBATCH --time=5:00:00
 #SBATCH --partition=gpu
 #SBATCH --qos=gpu
@@ -10,16 +10,16 @@
 #SBATCH --array=1-2
 #
 # ---USER REQUIRED---
-#SBATCH --output=logs/eval_best_models/%x_%A_%a.txt
+#SBATCH --output=logs/eval_best_static/%x_%A_%a.txt
 
 # --- Source Shared Environment Setup ---
 source slurm/scripts/setup_env.sh
 
 # Ensure output log folder exists
-mkdir -p logs/eval_best_models
+mkdir -p logs/eval_best_static
 
 # --- Parse Parameters ---
-PARAMS=$(sed -n "${SLURM_ARRAY_TASK_ID}p" $PROJECT_ROOT/slurm/configs/best_model_params.txt)
+PARAMS=$(sed -n "${SLURM_ARRAY_TASK_ID}p" $PROJECT_ROOT/slurm/configs/best_static_model_params.txt)
 
 read -r DATASET TEXT_MODEL SPEECH_MODEL USE_ATTENTION BIDIRECTIONAL \
         HIDDEN_SIZE SPEECHF_TEXT_PCA SPEECHF_SPEECH_PCA SYSTEMF_PCA \

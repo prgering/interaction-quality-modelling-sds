@@ -123,10 +123,10 @@ python scripts/analyse_cv_results.py
 ### Step I: Final Model Evaluation
 Trains models on the full training set using the optimal hyperparameter configurations and evaluates performance on the held-out test set. 
 
-> Prerequisite: place the best hyperparameter configurations from Step H in `slurm/configs/best_model_params.txt` (one space-separated configuration per line).
+> Prerequisite: place the best hyperparameter configurations from Step H in `slurm/configs/best_static_model_params.txt` (one space-separated configuration per line).
 
 ```bash
-sbatch slurm/scripts/train_eval_best_models.sh
+sbatch slurm/scripts/train_eval_best_models_static.sh
 ```
 
 ### Step J: Analyse Evaluation Results
@@ -145,8 +145,26 @@ Complete Steps A &mdash; E from the Frozen Pipeline Instructions.
 For Step D (Speech Feature Extraction), only extract the OpenSMILE features by specifying the `static_speech` mode.
 
 ### Step F: Hyperparameter Tuning
+Trains fine-tuned pipeline on training set and evaluates on validation set to determine optimal window-size, encoder learning rate, frozen encoder layers. 
 
+> Note: Best hyperparameters from static pipeline used here for other LSTM hyperparameters. Therefore, the static pipeline must be run up until Step I to run the fine-tuned pipeline. 
+> Generate parameter text files with `scripts/generate_hyperparam_configs.py` using either the speech_end2end or system_end2end experiment mode.
 
+```bash
+# System features
+MODE=speech hyperparam_tune_end2end.sh
+# System features
+MODE=system hyperparam_tune_end2end.sh
+```
+
+### Step G: Final Model Evaluation
+Trains models on the full training set using the optimal hyperparameter configurations and evaluates performance on the held-out test set. 
+
+> Prerequisite: place the best hyperparameter configurations from Step F in `slurm/configs/best_end2end_params.txt` (one space-separated configuration per line).
+
+```bash
+sbatch slurm/scripts/train_eval_best_models_end2end.sh
+```
 
 ## License
 
