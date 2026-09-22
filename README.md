@@ -3,7 +3,7 @@
 Official Implementation for our Interspeech 2026 paper: **"A System-Agnostic Approach to Modelling Interaction Quality in Spoken Dialogue Systems"**
 
 ## About The Project
-This project compares two approaches to training models to **classify interaction quality**: **system-dependent (SD)** and **system-agnostic (SA)**. The system-dependent approach involves using system-log data, such as ASR confidence scores and dialogue manager states, whereas the system-agnostic approach involves using speech-based features derived from audio recordings of the interaction. To make this comparison, we train Long Short Term Memory (LSTM) models on features and interaction quality labels derived from the **CMU Let's Go (LEGO) corpus**, a publicly available corpus of spoken interactions between a user and a bus information system. For more information, please read our [Interspeech Paper]() and the LEGO corpus paper by Schmitt et al. (2012).
+This project compares two approaches to training models to **classify interaction quality**: **system-dependent (SD)** and **system-agnostic (SA)**. The system-dependent approach involves using system-log data, such as ASR confidence scores and dialogue manager states, whereas the system-agnostic approach involves using speech-based features derived from audio recordings of the interaction. To make this comparison, we train Long Short Term Memory (LSTM) models on features and interaction quality labels derived from the **CMU Let's Go (LEGO) corpus**, a publicly available corpus of spoken interactions between a user and a bus information system. For more information, please read our [Interspeech Paper](https://doi.org/10.21437/Interspeech.2026-1152) and the LEGO corpus paper by Schmitt et al. (2012).
 
 ## Getting Started
 
@@ -21,11 +21,13 @@ Follow these steps to set up the environment and run the code locally.
    ```bash
    git clone https://github.com/yourusername/interaction-quality-modelling.git
    cd interaction-quality-modelling
+   ```
 
 2. Create the virtual environment using the provided environment.yml file
    ```bash
    conda env create -f environment.yml
    conda activate model_iq_env
+   ```
 
 ### Data Preparation
 You must download the LEGO corpus from the [University of Bamberg Resources Website](https://www.uni-bamberg.de/ds/ressourcen/lego/).
@@ -126,7 +128,13 @@ sbatch slurm/scripts/hyperparam_tune_system_lstm.sh
 ```
 
 **2. Final Model Evaluation (--mode evaluate)**
-Trains models on the full training set using the best-performing hyperparameters and evaluates predictions on the test set.
+Trains models on the full training set using the best-performing hyperparameters and evaluates predictions on the test set. 
+
+Before running, place the best-performing hyperparameter configuration for each feature set in `slurm/configs/best_model_params.txt` (formatted as one configuration per line, with each parameter space-separated and the parameter order matching the order expected in the shell script).
+
+```bash
+sbatch slurm/scripts/train_eval_best_models.sh
+```
 
 
 ## Running the Fine-Tuned Pipeline
@@ -138,11 +146,27 @@ For Step D (Speech Feature Extraction), only extract the OpenSMILE features by s
 
 ### Step G:
 
-```
 
 ## License
 
-Distributed under the project_license. See `LICENSE.txt` for more information.
+Distributed under the . See `LICENSE.txt` for more information.
+
+
+## Citation
+If you use this repistory or build upon this work, please cite our paper:
+
+```bibtex
+@inproceedings{gering26_interspeech,
+  title     = {{A System-Agnostic Approach to Modelling Interaction Quality in Spoken Dialogue Systems}},
+  author    = {Paul Gering and Roger K. Moore},
+  year      = {2026},
+  booktitle = {{Interspeech 2026}},
+  pages     = {3400--3404},
+  doi       = {10.21437/Interspeech.2026-1152},
+  issn      = {2958-1796},
+}
+```
+
 
 ## References
 ```bibtex
