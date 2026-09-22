@@ -58,7 +58,7 @@ python scripts/align_system_prompts.py
 
 ### Step D: Speech Feature Extraction
 
-Combine user and agent transcripts to extract exchange-level speech features (OpenSMILE acoustic features, speech embeddings, and text embeddings).
+Combine user and agent transcripts to extract exchange-level speech features.
 
 **1. Local Execution (CPU / Fast Mode)**
 
@@ -92,8 +92,7 @@ python scripts/filter_system_features.py
 
 ### Step F: Prepare Feature Sets for Machine Learning
 
-Prepares features for modelling by loading, preprocessing, and splitting the data. PCA and scaling are applied to embedding features, whereas non-embedding features are
-only scaled.
+Prepares features for modelling by applying scaling and PCA, followed by dataset splitting.
 
 ```bash
 python scripts/prepare_features_for_modelling.py
@@ -101,19 +100,15 @@ python scripts/prepare_features_for_modelling.py
 
 ### Step G: Hyperparameter Tuning with Static Features
 
-Performs hyperparameter tuning on LSTM classifier with static features (10-fold grouped cross-validation grid search).
+Performs 10-fold cross-validation grid search for interaction quality classifiers with LSTM architectures.
 
-Hyperparameter sweeps are driven by slurm array jobs. Generate parameter configurations using `scripts/generate_hyperparam_configs.py`, and ensure the `#SBATCH --array` size matches the total number of lines in the generated text file.
-
-* a. Speech features
+> Hyperparameter sweeps are driven by slurm array jobs. Generate parameter configuration text files with `scripts/generate_hyperparam_configs.py`. Ensure `#SBATCH --array` size matches the total configuration count.
 
 ```bash
+# Speech features
 sbatch slurm/scripts/hyperparam_tune_speech_lstm.sh
-```
 
-* b. System features
-
-```bash
+# System features
 sbatch slurm/scripts/hyperparam_tune_system_lstm.sh
 ```
 
