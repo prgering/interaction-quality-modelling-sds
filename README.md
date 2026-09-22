@@ -5,7 +5,8 @@ Official Implementation for our Interspeech 2026 paper: **"A System-Agnostic App
 ## About The Project
 This project compares two approaches to training models to **classify interaction quality**: **system-dependent (SD)** and **system-agnostic (SA)**. The system-dependent approach involves using system-log data, such as ASR confidence scores and dialogue manager states, whereas the system-agnostic approach involves using speech-based features derived from audio recordings of the interaction. To make this comparison, we train Long Short Term Memory (LSTM) models on features and interaction quality labels derived from the **CMU Let's Go (LEGO) corpus**, a publicly available corpus of spoken interactions between a user and a bus information system. For more information, please read our [Interspeech Paper](https://doi.org/10.21437/Interspeech.2026-1152) and the LEGO corpus paper by Schmitt et al. (2012).
 
-## Getting Started
+---
+## Setup & Installation
 
 Follow these steps to set up the environment and run the code locally.
 
@@ -15,14 +16,12 @@ Follow these steps to set up the environment and run the code locally.
 * [Anaconda](https://www.anaconda.com/) or Miniconda
 * (Optional) CUDA-compatible GPU for faster training
 
----
-
 ### Installation
 
 1. Clone this repository to your local machine:
    ```bash
-   git clone https://github.com/yourusername/interaction-quality-modelling.git
-   cd interaction-quality-modelling
+   git clone https://github.com/prgering/interaction-quality-modelling-sds.git
+   cd interaction-quality-modelling-sds
    ```
 
 2. Create the virtual environment using the provided environment.yml file
@@ -36,6 +35,7 @@ You must download the LEGO corpus from the [University of Bamberg Resources Webs
 
 Once you have unzipped the downloaded folder, place it in the 'data/raw/' directory of this repository.
 
+---
 ## Running the Static Feature Pipeline
 
 ### Step A: System Log Preprocessing
@@ -154,6 +154,7 @@ python scripts/analyse_eval_results.py
 
 Note: Ensure you have completed both the static feature pipeline and the fine-tuned pipeline steps before running this analysis as it evaluates predictions across all static and fine-tuned model variants simultaneously.
 
+---
 ## Running the Fine-Tuned Pipeline
 Complete Steps A &mdash; E from the Frozen Pipeline Instructions. 
 
