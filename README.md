@@ -8,15 +8,10 @@ This project compares two approaches to training models to **classify interactio
 ---
 ## Setup & Installation
 
-Follow these steps to set up the environment and run the code locally.
-
-### Prerequisites
-
+Prerequisites
 * Python 3.10
 * [Anaconda](https://www.anaconda.com/) or Miniconda
 * (Optional) CUDA-compatible GPU for faster training
-
-### Installation
 
 1. Clone this repository to your local machine:
    ```bash
