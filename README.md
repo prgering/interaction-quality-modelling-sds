@@ -66,7 +66,7 @@ python scripts/align_system_prompts.py
 
 Combine user and agent transcripts to extract exchange-level speech features.
 
-> Note: Run on HPC via Slurm**
+> Note: Run on HPC via Slurm
 
 ```bash
 # Extracts OpenSMILE features only
@@ -113,7 +113,7 @@ sbatch slurm/scripts/hyperparam_tune_system_lstm.sh
 Analyses cross-validation performance across hyperparameter sweeps to determine optimal configurations for each feature set.
 
 ```bash
-python scripts/analyse_cv_results.py
+python scripts/analyse_cv_results.py --pipeline_type static
 ```
 
 ### Step I: Final Model Evaluation
@@ -150,17 +150,17 @@ Trains fine-tuned pipeline on training set and evaluates on the validation set t
 
 ```bash
 # Speech feature tuning
-MODE=speech sbatch hyperparam_tune_end2end.sh
+MODE=speech sbatch slurm/scripts/hyperparam_tune_end2end.sh
 
 # System feature tuning
-MODE=system sbatch hyperparam_tune_end2end.sh
+MODE=system sbatch slurm/scripts/hyperparam_tune_end2end.sh
 ```
 
 ### Step G: Analysing Fine-Tuning Results
 Analyses validation set metrics across the fine-tuning sweeps to select the top-performing architectures.
 
 ```bash
-python scripts/analyse_cv_results_end2end.py
+python scripts/analyse_cv_results.py --pipeline_type end2end
 ```
 
 ### Step H: Final Model Evaluation

@@ -43,9 +43,12 @@ def parse_args():
         description="Analyse hyperparameter tuning results for LSTM models."
     )
     parser.add_argument(
-        "--input-dir",
-        default="experiments/system_lstm_tuning",
-        help="Directory containing the hyperparameter tuning results."
+        "--pipeline-type",
+        type=str,
+        required=True,
+        choices=["static", "end2end"],
+        default="static",
+        help="Type of pipeline to analyse: 'static' for static features or 'end2end' for end-to-end features."
     )
     parser.add_argument(
         "--output-dir",
@@ -59,25 +62,29 @@ def main():
 
     base_path = get_base_path()
 
-    directories = {
-        "tuning_results": resolve_path(base_path, args.input_dir),
-        "output": resolve_path(base_path, args.output_dir),
+    results_dirs = {
+        "static": resolve_path(base_path, "experiments/hyperparam_tuning_results"),
+        "end2end": resolve_path(base_path, "experiments/fine_tuning_results"),
     }
 
-    for path in directories.values():
-        path.mkdir(parents=True, exist_ok=True)
+    directories = {
+        "input": results_dirs[args.pipeline_type],
+        "output": resolve_path(base_path, args.output_dir) / f"{args.pipeline_type}_analysis",
+    }
+
+    if not directories["input"].exists():
+        raise FileNotFoundError(f"Input directory does not exist: {directories['input']}")
+    directories["output"].mkdir(parents=True, exist_ok=True)
 
     csv_files = get_filepaths(
         directories, 
-        folder_to_process="tuning_results"
+        folder_to_process="cv_results"
     )
 
     if not csv_files:
         raise FileNotFoundError(f"No CSV files found in the input directory: {directories['input']}")
 
-    combined_csv_path = directories["output"] / "combined_tuning_results.csv"
-    graph_dir = directories["output"] / "graphs"
-    graph_dir.mkdir(parents=True, exist_ok=True)
+    combined_csv_path = directories["output"] / f"cv_results_{args.pipeline_type}.csv"
 
     merged_df = pd.concat([pd.read_csv(f) for f in csv_files], ignore_index=True)
 
