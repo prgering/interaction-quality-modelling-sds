@@ -137,6 +137,7 @@ python scripts/analyse_eval_results.py
 ---
 ## Running the Fine-Tuned Pipeline
 > **Note on Terminology:** In this repository, the terms **Fine-Tuned Pipeline** and **End-to-End (E2E)** refer to the same architecture. Scripts and configuration files related to this pipeline use the `end2end` naming convention.
+
 > Prerequisite: Complete Steps A &mdash; E from the Static Feature Pipeline first. 
 > For Step D, run the `static_speech` mode to extract only OpenSMILE features.
 
