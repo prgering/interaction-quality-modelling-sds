@@ -1,0 +1,36 @@
+name: iq_predict_env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - inflect
+  - pysoundfile
+  - python=3.10
+  - sentencepiece
+  - pip
+  - cmake
+  - seaborn
+  - av
+  - rapidfuzz
+  - ffmpeg
+  - matplotlib
+  - libsndfile
+  - pyarrow
+  - pandas
+  - statsmodels
+  - scikit-posthocs
+  - pip:
+      - ctranslate2
+      - faster-whisper
+      - lightning
+      - optuna
+      - pyannote-audio
+      - scipy
+      - scikit-learn
+      - sentence-transformers
+      - speechbrain
+      - torch
+      - torchaudio
+      - torchvision
+      - transformers
+      - whisperx

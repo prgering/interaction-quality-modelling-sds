@@ -3,7 +3,13 @@
 Official Implementation for our Interspeech 2026 paper: **"A System-Agnostic Approach to Modelling Interaction Quality in Spoken Dialogue Systems"**
 
 ## About The Project
-This project compares two approaches to training models to **classify interaction quality**: **system-dependent (SD)** and **system-agnostic (SA)**. The system-dependent approach involves using system-log data, such as ASR confidence scores and dialogue manager states, whereas the system-agnostic approach involves using speech-based features derived from audio recordings of the interaction. To make this comparison, we train Long Short Term Memory (LSTM) models on features and interaction quality labels derived from the **CMU Let's Go (LEGO) corpus**, a publicly available corpus of spoken interactions between a user and a bus information system. For more information, please read our [Interspeech Paper](https://doi.org/10.21437/Interspeech.2026-1152) and the LEGO corpus paper by Schmitt et al. (2012).
+This project compares two approaches to training models to **classify interaction quality**:
+* **System-dependent (SD):** Uses system-log data, such as ASR confidence scores and dialogue manager states.
+* **System-agnostic (SA):** Uses speech-based features derived from audio recordings of interactions. 
+
+To compare these approaches, we train **Long Short Term Memory (LSTM)** models on features and interaction quality labels derived from the **CMU Let's Go (LEGO) corpus**.
+
+For further details, please refer to our [Interspeech Paper](https://doi.org/10.21437/Interspeech.2026-1152) and the LEGO corpus paper by Schmitt et al. (2012).
 
 ## Setup & Installation
 
@@ -22,13 +28,13 @@ This project compares two approaches to training models to **classify interactio
 2. Create and activate the virtual environment
    ```bash
    conda env create -f environment.yml
-   conda activate model_iq_env
+   conda activate iq_predict_env
    ```
 
 ### Data Preparation
 Download the LEGO corpus from the [University of Bamberg Resources Website](https://www.uni-bamberg.de/ds/ressourcen/lego/).
 
-Unzip the the downloaded folder and place it in the `data/raw/` directory.
+Unzip the downloaded folder and place it in the `data/raw/` directory.
 
 ## Running the Static Feature Pipeline
 
@@ -60,17 +66,7 @@ python scripts/align_system_prompts.py
 
 Combine user and agent transcripts to extract exchange-level speech features.
 
-**1. Local Execution (CPU / Fast Mode)**
-
-```bash
-# Extracts OpenSMILE features only
-python -m scripts/extract_speech_features --skip-embeddings
-
-# Extracts full speech features for small subset of data
-python -m scripts/extract_speech_features --debug
-```
-
-**2. HPC Execution via Slurm**
+> Note: Execute on HPC via Slurm**
 
 ```bash
 # Extracts OpenSMILE features only
@@ -82,7 +78,7 @@ sbatch slurm/scripts/extract_speech_features.sh speech
 
 ### Step E: Filter System Log Features
 
-Excluding dialogues from the system-derived features if there are missing audio files or dialogues with no user or agent speech. 
+Filter the System-Derived (SD) features to exclude dialogues with missing audio files or no user or agent speech. 
 
 > Prerequisite: This step can only be run once validated user and agent transcripts have been produced.
 
@@ -114,16 +110,16 @@ sbatch slurm/scripts/hyperparam_tune_system_lstm.sh
 
 ### Step H: Analyse Hyperparameter Tuning Results
 
-Analyses cross-validation performance across hyperparameter sweeps to determine optimal parameter configurations for each feature set.
+Analyses cross-validation performance across hyperparameter sweeps to determine optimal configurations for each feature set.
 
 ```bash
 python scripts/analyse_cv_results.py
 ```
 
 ### Step I: Final Model Evaluation
-Trains models on the full training set using the optimal hyperparameter configurations and evaluates performance on the held-out test set. 
+Trains models on the full training set and evaluates performance on the held-out test set.
 
-> Prerequisite: place the best hyperparameter configurations from Step H in `slurm/configs/best_static_model_params.txt` (one space-separated configuration per line).
+> Prerequisite: place the best hyperparameter configurations from Step H in `slurm/configs/best_static_model_params.txt` (one space-separated configuration per line) to train and evaluate on the optimal configurations.
 
 ```bash
 sbatch slurm/scripts/train_eval_best_models_static.sh
@@ -132,33 +128,38 @@ sbatch slurm/scripts/train_eval_best_models_static.sh
 ### Step J: Analyse Evaluation Results
 Performs pairwise permutation tests with Holm-Bonferroni correction to compare model performance (Macro-F1 & Recall) across model variants.
 
+> Note: Complete both the Static Feature Pipeline and the Fine-Tuned Pipeline evaluation steps prior to running this script, as it compares all model variants simultaneously.
+
+
 ```bash
 python scripts/analyse_eval_results.py
 ```
 
-> Note: Complete both the Static Feature Pipeline and the Fine-Tuned Pipeline evaluation steps prior to running this script, as it compares all model variants simultaneously.
-
 ---
 ## Running the Fine-Tuned Pipeline
-Complete Steps A &mdash; E from the Frozen Pipeline Instructions. 
+**Complete Steps A &mdash; E from the Static Feature Pipeline** 
 
 For Step D (Speech Feature Extraction), only extract the OpenSMILE features by specifying the `static_speech` mode.
 
 ### Step F: Hyperparameter Tuning
-Trains fine-tuned pipeline on training set and evaluates on validation set to determine optimal window-size, encoder learning rate, frozen encoder layers. 
+Trains fine-tuned pipeline on training set and evaluates on validation set to determine optimal window-size, encoder learning rate, and frozen encoder layers. 
 
-> Note: Best hyperparameters from static pipeline used here for other LSTM hyperparameters. Therefore, the static pipeline must be run up until Step I to run the fine-tuned pipeline. 
-> Generate parameter text files with `scripts/generate_hyperparam_configs.py` using either the speech_end2end or system_end2end experiment mode.
+> Note: Hyperparameters tuned in the Static Pipeline are not tuned again here. Specify the best hyperparameter configurations from the static pipeline in `hyperparam_tune_end2end.sh`.
+> Generate parameter configuration text files with `scripts/generate_hyperparam_configs.py` for the tunable hyperparameters.
 
 ```bash
+# Speech features
+MODE=speech sbatch hyperparam_tune_end2end.sh
+
 # System features
-MODE=speech hyperparam_tune_end2end.sh
-# System features
-MODE=system hyperparam_tune_end2end.sh
+MODE=system sbatch hyperparam_tune_end2end.sh
 ```
 
-### Step G: Final Model Evaluation
-Trains models on the full training set using the optimal hyperparameter configurations and evaluates performance on the held-out test set. 
+### Step G: Analysing Fine-Tuning Results
+
+
+### Step H: Final Model Evaluation
+Trains models on the full training set and evaluates performance on the held-out test set. Use the best parameter configurations from Step F.
 
 > Prerequisite: place the best hyperparameter configurations from Step F in `slurm/configs/best_end2end_params.txt` (one space-separated configuration per line).
 
