@@ -25,7 +25,7 @@ For further details, please refer to our [Interspeech Paper](https://doi.org/10.
    cd interaction-quality-modelling-sds
    ```
 
-2. Create and activate the virtual environment
+2. Create and activate the virtual environment:
    ```bash
    conda env create -f environment.yml
    conda activate iq_predict_env
@@ -66,7 +66,7 @@ python scripts/align_system_prompts.py
 
 Combine user and agent transcripts to extract exchange-level speech features.
 
-> Note: Execute on HPC via Slurm**
+> Note: Run on HPC via Slurm**
 
 ```bash
 # Extracts OpenSMILE features only
@@ -80,7 +80,7 @@ sbatch slurm/scripts/extract_speech_features.sh speech
 
 Filter the System-Derived (SD) features to exclude dialogues with missing audio files or no user or agent speech. 
 
-> Prerequisite: This step can only be run once validated user and agent transcripts have been produced.
+> Prerequisite: Run only after validated user and agent transcripts are generated.
 
 ```bash
 python scripts/filter_system_features.py
@@ -88,7 +88,7 @@ python scripts/filter_system_features.py
 
 ### Step F: Prepare Feature Sets for Machine Learning
 
-Prepares features for modelling by applying scaling and PCA, followed by dataset splitting.
+Prepares features for modelling by applying scaling, PCA, and dataset splitting.
 
 ```bash
 python scripts/prepare_features_for_modelling.py
@@ -98,7 +98,7 @@ python scripts/prepare_features_for_modelling.py
 
 Performs 10-fold cross-validation grid search for interaction quality classifiers with LSTM architectures.
 
-> Hyperparameter sweeps are driven by slurm array jobs. Generate parameter configuration text files with `scripts/generate_hyperparam_configs.py`. Ensure `#SBATCH --array` size matches the total configuration count.
+> Slurm Configuration: Hyperparameter sweeps are driven by slurm array jobs. Generate parameter configuration text files with `scripts/generate_hyperparam_configs.py`. Ensure `#SBATCH --array` size matches the total configuration count.
 
 ```bash
 # Speech features
@@ -119,7 +119,7 @@ python scripts/analyse_cv_results.py
 ### Step I: Final Model Evaluation
 Trains models on the full training set and evaluates performance on the held-out test set.
 
-> Prerequisite: place the best hyperparameter configurations from Step H in `slurm/configs/best_static_model_params.txt` (one space-separated configuration per line) to train and evaluate on the optimal configurations.
+> Prerequisite: place the best hyperparameter configurations from **Step H** in `slurm/configs/best_static_model_params.txt` (one space-separated configuration per line).
 
 ```bash
 sbatch slurm/scripts/train_eval_best_models_static.sh
@@ -128,8 +128,7 @@ sbatch slurm/scripts/train_eval_best_models_static.sh
 ### Step J: Analyse Evaluation Results
 Performs pairwise permutation tests with Holm-Bonferroni correction to compare model performance (Macro-F1 & Recall) across model variants.
 
-> Note: Complete both the Static Feature Pipeline and the Fine-Tuned Pipeline evaluation steps prior to running this script, as it compares all model variants simultaneously.
-
+> Note: Run this script only after completing **both** the static and Fine-Tuned Pipeline evaluation steps.
 
 ```bash
 python scripts/analyse_eval_results.py
@@ -137,35 +136,42 @@ python scripts/analyse_eval_results.py
 
 ---
 ## Running the Fine-Tuned Pipeline
-**Complete Steps A &mdash; E from the Static Feature Pipeline** 
-
-For Step D (Speech Feature Extraction), only extract the OpenSMILE features by specifying the `static_speech` mode.
+> **Note on Terminology:** In this repository, the terms **Fine-Tuned Pipeline** and **End-to-End (E2E)** refer to the same architecture. Scripts and configuration files related to this pipeline use the `end2end` naming convention.
+> Prerequisite: Complete Steps A &mdash; E from the Static Feature Pipeline first. 
+> For Step D, run the `static_speech` mode to extract only OpenSMILE features.
 
 ### Step F: Hyperparameter Tuning
-Trains fine-tuned pipeline on training set and evaluates on validation set to determine optimal window-size, encoder learning rate, and frozen encoder layers. 
+Trains fine-tuned pipeline on training set and evaluates on the validation set to determine optimal window-size, encoder learning rate, and frozen encoder layers. 
 
-> Note: Hyperparameters tuned in the Static Pipeline are not tuned again here. Specify the best hyperparameter configurations from the static pipeline in `hyperparam_tune_end2end.sh`.
-> Generate parameter configuration text files with `scripts/generate_hyperparam_configs.py` for the tunable hyperparameters.
+> Note: Uses the optimal hyperparameters previously tuned in the Static Pipeline.
+> 1. Ensure best static parameters are defined in `slurm/scripts/hyperparam_tune_end2end.sh`
+> 2. Generate configuration files with `scripts/generate_hyperparam_configs.py` for fine-tuning parameters.
 
 ```bash
-# Speech features
+# Speech feature tuning
 MODE=speech sbatch hyperparam_tune_end2end.sh
 
-# System features
+# System feature tuning
 MODE=system sbatch hyperparam_tune_end2end.sh
 ```
 
 ### Step G: Analysing Fine-Tuning Results
+Analyses validation set metrics across the fine-tuning sweeps to select the top-performing architectures.
 
+```bash
+python scripts/analyse_cv_results_end2end.py
+```
 
 ### Step H: Final Model Evaluation
-Trains models on the full training set and evaluates performance on the held-out test set. Use the best parameter configurations from Step F.
+Trains models on the full training set and evaluates performance on the held-out test set.
 
-> Prerequisite: place the best hyperparameter configurations from Step F in `slurm/configs/best_end2end_params.txt` (one space-separated configuration per line).
+> Prerequisite: place the best hyperparameter configurations from **Step G** in `slurm/configs/best_end2end_params.txt` (one space-separated configuration per line).
 
 ```bash
 sbatch slurm/scripts/train_eval_best_models_end2end.sh
 ```
+
+> Final Step: Proceed to **Step J** under the Static Pipeline section (`python scripts/analyse_eval_results.py`) to run joint statistical significance testing across both static and fine-tuned models.
 
 ## License
 
