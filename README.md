@@ -176,7 +176,7 @@ sbatch slurm/scripts/train_eval_best_models_end2end.sh
 
 ## License
 
-Distributed under the . See `LICENSE.txt` for more information.
+Distributed under the MIT License. See `LICENSE.txt` for more information.
 
 
 ## Citation
